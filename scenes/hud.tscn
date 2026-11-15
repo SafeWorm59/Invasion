@@ -1,0 +1,61 @@
+[gd_scene format=3 uid="uid://d2ekl4t6vtbgw"]
+
+[ext_resource type="Script" uid="uid://bco1d1nv5qsvh" path="res://scenes/hud.gd" id="1_37p78"]
+
+[node name="HUD" type="CanvasLayer" unique_id=826037764]
+script = ExtResource("1_37p78")
+
+[node name="CommandButtons" type="Control" parent="." unique_id=40561009]
+layout_mode = 3
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_top = -40.0
+offset_right = 40.0
+grow_vertical = 0
+
+[node name="VBoxContainer" type="HBoxContainer" parent="CommandButtons" unique_id=1036579456]
+layout_mode = 0
+offset_left = 18.0
+offset_top = -47.0
+offset_right = 566.0
+offset_bottom = 18.0
+
+[node name="FollowButton" type="Button" parent="CommandButtons/VBoxContainer" unique_id=1630605028]
+custom_minimum_size = Vector2(180, 50)
+layout_mode = 2
+text = "FOLLOW
+"
+
+[node name="CaptureButton" type="Button" parent="CommandButtons/VBoxContainer" unique_id=927042167]
+custom_minimum_size = Vector2(180, 50)
+layout_mode = 2
+text = "CAPTURE
+"
+
+[node name="DefendButton" type="Button" parent="CommandButtons/VBoxContainer" unique_id=2020239944]
+custom_minimum_size = Vector2(180, 50)
+layout_mode = 2
+text = "DEFEND
+"
+
+[node name="HealthPanel" type="PanelContainer" parent="." unique_id=60760]
+offset_left = 20.0
+offset_top = 20.0
+offset_right = 376.0
+offset_bottom = 100.0
+scale = Vector2(1.0069444, 1)
+
+[node name="HealthLayout" type="VBoxContainer" parent="HealthPanel" unique_id=745103730]
+layout_mode = 2
+
+[node name="HealthLabel" type="Label" parent="HealthPanel/HealthLayout" unique_id=1691769105]
+layout_mode = 2
+text = "HEALTH: 100/100
+"
+
+[node name="HealthBar" type="ProgressBar" parent="HealthPanel/HealthLayout" unique_id=1832038258]
+custom_minimum_size = Vector2(220, 18)
+clip_contents = true
+layout_mode = 2
+show_percentage = false

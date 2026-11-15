@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://dyao5qvbebcab"]
+
+[ext_resource type="Script" uid="uid://gh1d3dk2fupo" path="res://cilia.gd" id="1_y3w5t"]
+
+[node name="Cilia" type="Node2D" unique_id=1980130855]
+script = ExtResource("1_y3w5t")

@@ -1,0 +1,105 @@
+[gd_scene format=3 uid="uid://d13014vt3ifkd"]
+
+[ext_resource type="Script" uid="uid://csjr5sb36qqj" path="res://scenes/world_background.gd" id="1_0tnr3"]
+[ext_resource type="PackedScene" uid="uid://bxw7g127ec8ve" path="res://scenes/player.tscn" id="2_e2vju"]
+[ext_resource type="PackedScene" uid="uid://c6lwf476tp8pk" path="res://scenes/cell.tscn" id="3_kqxuh"]
+[ext_resource type="PackedScene" uid="uid://cnb76ids0cdwk" path="res://scenes/wall.tscn" id="4_vr6wg"]
+[ext_resource type="PackedScene" uid="uid://iddtq2pooare" path="res://scenes/neutrophil.tscn" id="5_cd8vi"]
+[ext_resource type="Script" uid="uid://bco1d1nv5qsvh" path="res://scenes/hud.gd" id="6_0lt4g"]
+
+[node name="Main" type="Node2D" unique_id=715930402]
+position = Vector2(642, 355)
+
+[node name="WorldBackground" type="Polygon2D" parent="." unique_id=1923889750]
+script = ExtResource("1_0tnr3")
+
+[node name="Node2D" type="Node2D" parent="." unique_id=513094395]
+
+[node name="Background" type="ColorRect" parent="Node2D" unique_id=1097591690]
+offset_left = -643.0
+offset_top = -359.0
+offset_right = 637.0
+offset_bottom = 361.0
+color = Color(0.1882353, 0.0627451, 0.105882354, 1)
+metadata/_edit_use_anchors_ = true
+
+[node name="Player" parent="Node2D" unique_id=1073215570 instance=ExtResource("2_e2vju")]
+
+[node name="Cell" parent="Node2D" unique_id=62716840 instance=ExtResource("3_kqxuh")]
+position = Vector2(180, 80)
+
+[node name="Cell2" parent="Node2D" unique_id=1606068924 instance=ExtResource("3_kqxuh")]
+position = Vector2(-181, -100)
+
+[node name="Cell3" parent="Node2D" unique_id=286613476 instance=ExtResource("3_kqxuh")]
+position = Vector2(301, -179)
+
+[node name="Cell4" parent="Node2D" unique_id=363767399 instance=ExtResource("3_kqxuh")]
+position = Vector2(-320, 180)
+
+[node name="Cell5" parent="Node2D" unique_id=1293479722 instance=ExtResource("3_kqxuh")]
+position = Vector2(80, 300)
+
+[node name="Wall_Top" parent="Node2D" unique_id=90592755 instance=ExtResource("4_vr6wg")]
+position = Vector2(0, -600)
+wall_size = Vector2(1800, 40)
+corner_radius = 8.0
+
+[node name="Wall_Left" parent="Node2D" unique_id=1820060017 instance=ExtResource("4_vr6wg")]
+position = Vector2(-800, 0)
+wall_size = Vector2(40, 1200)
+corner_radius = 8.0
+
+[node name="Wall_Right" parent="Node2D" unique_id=1729130505 instance=ExtResource("4_vr6wg")]
+position = Vector2(880, 0)
+wall_size = Vector2(40, 1200)
+corner_radius = 8.0
+
+[node name="Wall_Bottom" parent="Node2D" unique_id=501045578 instance=ExtResource("4_vr6wg")]
+position = Vector2(0, 600)
+wall_size = Vector2(1800, 40)
+corner_radius = 8.0
+
+[node name="Neutrophil" parent="Node2D" unique_id=2056121343 instance=ExtResource("5_cd8vi")]
+position = Vector2(450, 250)
+
+[node name="HUD" type="CanvasLayer" parent="." unique_id=218317789]
+script = ExtResource("6_0lt4g")
+
+[node name="HealthLabel" type="Label" parent="HUD" unique_id=1692137209]
+offset_left = 26.0
+offset_top = 18.0
+offset_right = 148.0
+offset_bottom = 67.0
+text = "Health: 100/100
+"
+metadata/_edit_use_anchors_ = true
+
+[node name="CommandButtons" type="HBoxContainer" parent="HUD" unique_id=1026658289]
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -380.0
+offset_top = -65.0
+offset_right = 6.0
+offset_bottom = -10.0
+grow_horizontal = 0
+grow_vertical = 0
+theme_override_constants/separation = 8
+
+[node name="FollowButton" type="Button" parent="HUD/CommandButtons" unique_id=1371493692]
+custom_minimum_size = Vector2(110, 55)
+layout_mode = 2
+text = "FOLLOW"
+
+[node name="CaptureButton" type="Button" parent="HUD/CommandButtons" unique_id=1135378248]
+custom_minimum_size = Vector2(150, 55)
+layout_mode = 2
+text = "CAPTURE"
+
+[node name="DefendButton" type="Button" parent="HUD/CommandButtons" unique_id=1319996256]
+custom_minimum_size = Vector2(110, 55)
+layout_mode = 2
+text = "DEFEND"

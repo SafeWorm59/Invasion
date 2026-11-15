@@ -1,6 +1,8 @@
 
 extends CharacterBody2D
 
+signal defeated_signal
+
 enum State {
 	PATROL,
 	CHASE,
@@ -89,13 +91,13 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
-	
+
 	if pending_chemical_alert:
 		pending_alert_timer -= delta
 
 		if pending_alert_timer <= 0.0:
 			pending_chemical_alert = false
-	
+
 	if defeated:
 		death_timer += delta
 		queue_redraw()
@@ -214,8 +216,6 @@ func _physics_process(delta: float) -> void:
 func choose_next_patrol_target() -> void:
 	var angle: float = randf_range(0.0, TAU)
 
-	# Randomize distance while keeping destinations within
-	# the patrol area around the neutrophil's starting position.
 	var distance: float = sqrt(randf()) * patrol_distance
 
 	var vertical_scale: float = (
@@ -320,7 +320,6 @@ func get_player_slot_position() -> Vector2:
 	return global_position + offset
 
 
-
 func take_damage(amount: int) -> void:
 	if defeated or amount <= 0:
 		return
@@ -332,23 +331,21 @@ func take_damage(amount: int) -> void:
 	queue_redraw()
 
 	if health <= 0:
-		# Save the death location before the cell disappears.
 		var death_position: Vector2 = global_position
 
 		defeated = true
+		defeated_signal.emit()
 		restrained = false
 		player_assisting = false
 		investigating = false
 		velocity = Vector2.ZERO
 		attack_active = false
 
-		# Release chemical signals from the dying cell.
 		release_death_chemical_alert(death_position)
 
 		remove_from_group("immune_cells")
 
 		print("Neutrophil defeated!")
-
 
 
 func find_nearest_target() -> Node2D:
@@ -402,7 +399,6 @@ func start_attack(cooldown: float = -1.0) -> void:
 	queue_redraw()
 
 
-
 func perform_attack() -> void:
 	if not is_instance_valid(target):
 		return
@@ -443,11 +439,38 @@ func perform_attack() -> void:
 
 	# Normal damage for the player and other valid targets.
 	if attacked_target.has_method("take_damage"):
-		attacked_target.take_damage(damage_to_deal)
+		var previous_player_health: int = -1
 
 		if attacked_target == player:
-			print("Neutrophil attacked the player!")
+			previous_player_health = int(player.get("health"))
 
+		attacked_target.take_damage(damage_to_deal)
+
+		# Notify the squad only if the player actually lost health.
+		if attacked_target == player:
+			var current_player_health: int = int(player.get("health"))
+
+			if current_player_health < previous_player_health:
+				notify_minions_of_player_attack()
+				print("Neutrophil attacked the player!")
+
+
+func notify_minions_of_player_attack() -> void:
+	var minions := get_tree().get_nodes_in_group("minions")
+	var notified_count: int = 0
+
+	for minion in minions:
+		if not is_instance_valid(minion):
+			continue
+
+		if minion.has_method("respond_to_player_attack"):
+			minion.respond_to_player_attack(self)
+			notified_count += 1
+
+	print(
+		"Player under attack! %d minions responding!"
+		% notified_count
+	)
 
 
 func receive_chemical_alert(
@@ -457,12 +480,10 @@ func receive_chemical_alert(
 	if defeated or restrained:
 		return
 
-	# Remember the alert, even if currently fighting.
 	pending_chemical_alert = true
 	pending_alert_position = location
 	pending_alert_timer = CHEMICAL_ALERT_MEMORY_DURATION
 
-	# If not fighting, begin investigating immediately.
 	if not is_instance_valid(target):
 		investigation_position = location
 		investigating = true
@@ -601,7 +622,7 @@ func draw_health_bar() -> void:
 
 	draw_rect(fill_rect, health_color)
 	draw_rect(background_rect, Color("#f0e8f0"), false, 1.0)
-	
+
 
 func release_death_chemical_alert(
 	origin: Vector2

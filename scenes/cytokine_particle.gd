@@ -5,6 +5,12 @@ extends Node2D
 @export var particle_lifetime: float = 12.0
 @export var detection_radius: float = 42.0
 
+# Physics layer used by walls.
+@export_flags_2d_physics var wall_collision_mask: int = 1
+
+@export_range(0.0, 1.0) var bounce_damping: float = 0.9
+@export var maximum_bounces_per_frame: int = 3
+
 const TRAIL_POINT_INTERVAL: float = 0.07
 const MAX_TRAIL_POINTS: int = 24
 const FOLLOW_DISTANCE_MIN: float = 28.0
@@ -105,7 +111,7 @@ func find_nearest_immune_cell() -> Node2D:
 	return nearest
 
 
-func _process(delta: float) -> void:
+func _physics_process(delta: float) -> void:
 	remaining_lifetime -= delta
 
 	if remaining_lifetime <= 0.0:
@@ -173,11 +179,73 @@ func _process(delta: float) -> void:
 			)
 
 	travel_direction = desired_direction.normalized()
-	global_position += travel_direction * personal_speed * delta
+
+	move_with_wall_bouncing(delta)
 
 	update_trail(delta)
 	check_immune_cell_detection()
 	queue_redraw()
+
+
+func move_with_wall_bouncing(delta: float) -> void:
+	var remaining_motion: Vector2 = (
+		travel_direction * personal_speed * delta
+	)
+
+	var space_state := get_world_2d().direct_space_state
+
+	for bounce_index in range(maximum_bounces_per_frame):
+		if remaining_motion.length_squared() < 0.01:
+			break
+
+		var query := PhysicsRayQueryParameters2D.create(
+			global_position,
+			global_position + remaining_motion
+		)
+
+		query.collision_mask = wall_collision_mask
+		query.collide_with_bodies = true
+		query.collide_with_areas = false
+
+		var collision: Dictionary = space_state.intersect_ray(query)
+
+		if collision.is_empty():
+			global_position += remaining_motion
+			break
+
+		var hit_position: Vector2 = collision["position"]
+		var normal: Vector2 = collision["normal"]
+
+		global_position = hit_position + normal * 2.0
+
+		var reflected_direction: Vector2 = travel_direction.bounce(
+			normal
+		).normalized()
+
+		if reflected_direction.length_squared() < 0.01:
+			break
+
+		travel_direction = reflected_direction
+
+		var remaining_distance: float = (
+			global_position.distance_to(
+				global_position + remaining_motion
+			)
+		)
+
+		var remaining_fraction: float = clampf(
+			1.0 - global_position.distance_to(hit_position)
+				/ maxf(remaining_motion.length(), 0.001),
+			0.0,
+			1.0
+		)
+
+		remaining_motion = (
+			travel_direction
+			* remaining_motion.length()
+			* remaining_fraction
+			* bounce_damping
+		)
 
 
 func update_trail(delta: float) -> void:
@@ -207,7 +275,6 @@ func check_immune_cell_detection() -> void:
 			immune_cell.global_position
 		)
 
-		# Alert immediately when the particle gets close enough.
 		if distance > detection_radius:
 			continue
 
@@ -219,7 +286,6 @@ func check_immune_cell_detection() -> void:
 				distance
 			)
 
-			# Only this particle disappears.
 			queue_free()
 			return
 
