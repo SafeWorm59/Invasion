@@ -1,4 +1,3 @@
-
 extends CharacterBody2D
 
 signal defeated_signal
@@ -77,9 +76,14 @@ var has_taken_damage: bool = false
 var health_bar_width: float = 54.0
 var health_bar_height: float = 7.0
 
+# Throttle minion group scans - only search every ~2 s to avoid
+# get_nodes_in_group() every physics frame.
+var _minion_scan_timer: float = 2.0
+
 
 func _ready() -> void:
 	add_to_group("immune_cells")
+	add_to_group("neutrophils")
 
 	health = max_health
 	player = get_tree().get_first_node_in_group("player") as Node2D
@@ -112,8 +116,14 @@ func _physics_process(delta: float) -> void:
 	if not is_instance_valid(player):
 		player = get_tree().get_first_node_in_group("player") as Node2D
 
-	update_restraint()
-	update_player_assistance()
+	# Throttled minion group scan - only re-scan every ~2 s.
+	_minion_scan_timer -= delta
+	if _minion_scan_timer > 0.0:
+		# Still use last-known target; don't rescan yet.
+		pass
+	else:
+		_minion_scan_timer = 2.0
+		update_restraint()
 
 	target = find_nearest_target()
 
@@ -210,7 +220,6 @@ func _physics_process(delta: float) -> void:
 				velocity = direction * patrol_speed
 
 	move_and_slide()
-	queue_redraw()
 
 
 func choose_next_patrol_target() -> void:
@@ -253,8 +262,10 @@ func update_restraint() -> void:
 
 	if restrained and not was_restrained:
 		print("Neutrophil restrained! Minions holding: ", nearby_minions)
+		queue_redraw()
 	elif was_restrained and not restrained:
 		print("Neutrophil broke free!")
+		queue_redraw()
 
 	if not restrained:
 		player_assisting = false
@@ -345,7 +356,7 @@ func take_damage(amount: int) -> void:
 
 		remove_from_group("immune_cells")
 
-		print("Neutrophil defeated!")
+	print("Neutrophil defeated!")
 
 
 func find_nearest_target() -> Node2D:
@@ -361,7 +372,17 @@ func find_nearest_target() -> Node2D:
 			nearest_distance = distance
 			nearest = player
 
-	for node in get_tree().get_nodes_in_group("minions"):
+	# Hostile minions - only scan every ~2 s (throttled via _minion_scan_timer).
+	# When the timer hasn't expired, return the previously found target to
+	# avoid scanning the entire minion group every physics frame.
+	if _minion_scan_timer > 1.5:
+		# Return cached target if available; if not, still scan once to populate it.
+		if target != null and is_instance_valid(target):
+			return target
+		# Fall through to scan below so the cache gets populated.
+
+	var minion_group = get_tree().get_nodes_in_group("minions")
+	for node in minion_group:
 		if not is_instance_valid(node) or not node is Node2D:
 			continue
 

@@ -1,0 +1,114 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/credits_menu.gd" id="1_cred"]
+
+[node name="CreditsMenu" type="PanelContainer"]
+custom_minimum_size = Vector2(560, 480)
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -280.0
+offset_top = -240.0
+offset_right = 280.0
+offset_bottom = 240.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_cred")
+
+[node name="Margin" type="MarginContainer" parent="."]
+layout_mode = 2
+theme_override_constants/margin_left = 32
+theme_override_constants/margin_top = 28
+theme_override_constants/margin_right = 32
+theme_override_constants/margin_bottom = 28
+
+[node name="VBox" type="VBoxContainer" parent="Margin"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="Title" type="Label" parent="Margin/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.9, 0.93, 1)
+theme_override_font_sizes/font_size = 22
+text = "CREDITS"
+horizontal_alignment = 1
+
+[node name="HSeparator" type="HSeparator" parent="Margin/VBox"]
+layout_mode = 2
+
+[node name="Scroll" type="ScrollContainer" parent="Margin/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="Content" type="VBoxContainer" parent="Margin/VBox/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 14
+
+[node name="GameTitle" type="Label" parent="Margin/VBox/Scroll/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.95, 0.35, 0.45, 1)
+theme_override_font_sizes/font_size = 18
+text = "INVASION: INSIDE THE HUMAN BODY"
+horizontal_alignment = 1
+
+[node name="GameSubtitle" type="Label" parent="Margin/VBox/Scroll/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.8, 0.65, 0.7, 1)
+theme_override_font_sizes/font_size = 13
+text = "A Microscopic Biological Action-Strategy Experience"
+horizontal_alignment = 1
+
+[node name="HSeparator2" type="HSeparator" parent="Margin/VBox/Scroll/Content"]
+layout_mode = 2
+
+[node name="Role1" type="Label" parent="Margin/VBox/Scroll/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.65, 0.55, 0.6, 1)
+theme_override_font_sizes/font_size = 12
+text = "GAME DESIGN & DEVELOPMENT"
+horizontal_alignment = 1
+
+[node name="Name1" type="Label" parent="Margin/VBox/Scroll/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 15
+text = "Invasion Development Team"
+horizontal_alignment = 1
+
+[node name="Role2" type="Label" parent="Margin/VBox/Scroll/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.65, 0.55, 0.6, 1)
+theme_override_font_sizes/font_size = 12
+text = "ENGINE"
+horizontal_alignment = 1
+
+[node name="Name2" type="Label" parent="Margin/VBox/Scroll/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 15
+text = "Godot Engine 4.7"
+horizontal_alignment = 1
+
+[node name="Role3" type="Label" parent="Margin/VBox/Scroll/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.65, 0.55, 0.6, 1)
+theme_override_font_sizes/font_size = 12
+text = "BIOLOGICAL CONCEPT & PATHOLOGY"
+horizontal_alignment = 1
+
+[node name="Name3" type="Label" parent="Margin/VBox/Scroll/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 14
+text = "Human Respiratory & Cellular Immunology"
+horizontal_alignment = 1
+
+[node name="BackButton" type="Button" parent="Margin/VBox"]
+custom_minimum_size = Vector2(200, 44)
+layout_mode = 2
+size_flags_horizontal = 4
+text = "BACK"

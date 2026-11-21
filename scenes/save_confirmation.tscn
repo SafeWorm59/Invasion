@@ -1,0 +1,47 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/save_confirmation.gd" id="1_save_confirmation"]
+
+[node name="SaveConfirmation" type="Control"]
+	layout_mode = 1
+	anchors_preset = 15
+	anchor_right = 1.0
+	anchor_bottom = 1.0
+	grow_horizontal = 2
+	grow_vertical = 2
+	mouse_filter = 2
+	script = ExtResource("1_save_confirmation")
+
+	[node name="modal_background" type="ColorRect" parent="."]
+		layout_mode = 1
+		anchors_preset = 15
+		anchor_right = 1.0
+		anchor_bottom = 1.0
+		grow_horizontal = 2
+		grow_vertical = 2
+		color = "#000000cc"
+
+	[node name="main_panel" type="PanelContainer" parent="."]
+		layout_mode = 1
+		anchors_preset = 15
+		anchor_right = 1.0
+		anchor_bottom = 1.0
+		custom_minimum_size = Vector2(400, 240)
+
+		[node name="message_label" type="Label" parent="main_panel"]
+			layout_mode = 2
+			vertical_alignment = 2
+			text = "Do you want to save your progress before returning to the main menu?"
+			horizontal_alignment = 0
+
+		[node name="button_container" type="HBoxContainer" parent="main_panel"]
+			layout_mode = 0
+
+			[node name="save_exit_btn" type="Button" parent="main_panel/button_container"]
+				text = "SAVE & EXIT"
+
+			[node name="exit_without_save_btn" type="Button" parent="main_panel/button_container"]
+				text = "EXIT WITHOUT SAVING"
+
+			[node name="cancel_btn" type="Button" parent="main_panel/button_container"]
+				text = "CANCEL"

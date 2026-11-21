@@ -1,4 +1,3 @@
-
 extends Node2D
 
 const MINION_SCENE = preload("res://scenes/minion.tscn")
@@ -12,6 +11,14 @@ const CYTOKINE_PARTICLE_COUNT: int = 24
 
 signal replication_completed(cell: Node2D)
 
+signal objective_completed(cell: Node2D)
+
+## Emitted once when an immune cell (the NKT cell) destroys this host cell.
+## The NKT host registry listens so it can drop the reference immediately.
+signal destroyed(cell: Node2D)
+
+const ELIMINATION_DURATION: float = 0.45
+
 var player_nearby: bool = false
 var nearby_player: Node2D = null
 
@@ -19,8 +26,14 @@ var nearby_player: Node2D = null
 @export var cell_radius: float = 34.0
 
 var infected: bool = false
+var objective_counted: bool = false
 var bursting: bool = false
 var burst_animation_time: float = 0.0
+
+## Set by the NKT cell. An eliminated cell stops replicating, ejects the
+## player, removes its own minions and collapses, but is never freed twice.
+var eliminated: bool = false
+var elimination_timer: float = 0.0
 
 var warning_active: bool = false
 var warning_timer: float = 0.0
@@ -44,6 +57,42 @@ func _ready() -> void:
 
 
 func _draw() -> void:
+	if eliminated:
+		var progress: float = clampf(
+			elimination_timer / ELIMINATION_DURATION,
+			0.0,
+			1.0
+		)
+		var alpha: float = 1.0 - progress
+		var radius: float = cell_radius * (1.0 - 0.80 * progress)
+
+		draw_circle(
+			Vector2.ZERO,
+			radius,
+			Color(0.72, 0.34, 0.62, alpha)
+		)
+		draw_circle(
+			Vector2.ZERO,
+			radius * 0.70,
+			Color(0.92, 0.58, 0.82, alpha * 0.85)
+		)
+		draw_circle(
+			Vector2(5, -4) * (1.0 - progress),
+			radius * 0.28,
+			Color(0.36, 0.12, 0.42, alpha)
+		)
+
+		# Membrane fragments drift outwards as the cell collapses.
+		for i in range(9):
+			var angle := TAU * float(i) / 9.0 + progress * 1.6
+			var distance := cell_radius * (0.35 + progress * 1.15)
+			draw_circle(
+				Vector2(cos(angle), sin(angle)) * distance,
+				3.2 * alpha,
+				Color(0.86, 0.46, 0.96, alpha)
+			)
+		return
+
 	if bursting:
 		var progress: float = min(
 			burst_animation_time / BURST_DURATION,
@@ -153,6 +202,9 @@ func _on_interaction_area_body_exited(body: Node2D) -> void:
 
 
 func try_enter(player: Node2D) -> bool:
+	if eliminated:
+		return false
+
 	if not player_nearby:
 		return false
 
@@ -175,14 +227,17 @@ func infect() -> bool:
 		return false
 
 	infected = true
+	objective_counted = true
 	queue_redraw()
+
+	emit_signal("objective_completed", self)
 
 	print("Host cell infected! Replication can begin.")
 	return true
 
 
 func start_replication() -> void:
-	if replication_started or bursting:
+	if replication_started or bursting or eliminated:
 		return
 
 	replication_started = true
@@ -207,6 +262,18 @@ func prepare_fragments() -> void:
 
 
 func _process(delta: float) -> void:
+	if eliminated:
+		elimination_timer = min(
+			elimination_timer + delta,
+			ELIMINATION_DURATION
+		)
+		queue_redraw()
+
+		if elimination_timer >= ELIMINATION_DURATION:
+			queue_free()
+
+		return
+
 	if bursting:
 		burst_animation_time = min(
 			burst_animation_time + delta,
@@ -253,6 +320,9 @@ func _process(delta: float) -> void:
 
 
 func spawn_minions() -> void:
+	if eliminated:
+		return
+
 	var main_scene := get_tree().current_scene
 
 	if main_scene == null:
@@ -275,6 +345,11 @@ func spawn_minions() -> void:
 		main_scene.add_child(minion)
 		minion.global_position = global_position + spawn_offset
 
+		# Ownership: the NKT cell removes exactly the minions produced by the
+		# host cell it destroys, never the whole level's population.
+		minion.set("source_cell", self)
+		minion.set("owner_cell_id", get_instance_id())
+
 	print("%d viral minion(s) spawned!" % minion_count)
 	
 func release_chemical_alert() -> void:
@@ -293,3 +368,72 @@ func release_chemical_alert() -> void:
 		"Host cell released %d chemical signaling particles!"
 		% CYTOKINE_PARTICLE_COUNT
 	)
+
+
+# --------------------------------------------------------------------------
+# Elimination (NKT cell)
+# --------------------------------------------------------------------------
+
+func is_eliminated() -> bool:
+	return eliminated
+
+
+## Destroy this host cell and every minion it produced. Safe to call twice and
+## safe while the cell is replicating or bursting: the collapse runs once and
+## the node frees itself exactly once.
+func eliminate(source: Node = null) -> void:
+	if eliminated:
+		return
+
+	eliminated = true
+	elimination_timer = 0.0
+
+	# Stop infection behaviour immediately so no new minions can appear.
+	replication_started = false
+	replication_remaining = 0.0
+	warning_active = false
+	bursting = false
+
+	# Leave the host_cells group at once: minimap, registry and the player's
+	# interact scan must never see this cell again.
+	remove_from_group("host_cells")
+
+	_eject_player()
+	_dissolve_owned_minions()
+
+	destroyed.emit(self)
+
+	var killer_name := "immune cell"
+	if is_instance_valid(source) and source is Node:
+		killer_name = (source as Node).name
+
+	print("Host cell eliminated by %s!" % killer_name)
+	queue_redraw()
+
+
+func _eject_player() -> void:
+	var player := get_tree().get_first_node_in_group("player")
+
+	if not is_instance_valid(player):
+		return
+
+	if player.get("host_cell") != self:
+		return
+
+	if player.has_method("force_eject"):
+		player.force_eject(self)
+
+
+func _dissolve_owned_minions() -> void:
+	var cell_id := get_instance_id()
+
+	for node in get_tree().get_nodes_in_group("minions"):
+		if not is_instance_valid(node):
+			continue
+
+		var owned: bool = int(node.get("owner_cell_id")) == cell_id
+		var linked: bool = node.get("source_cell") == self
+
+		if owned or linked:
+			if node.has_method("dissolve"):
+				node.dissolve()

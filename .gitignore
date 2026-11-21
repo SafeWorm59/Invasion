@@ -1,3 +1,24 @@
 # Godot 4+ specific ignores
 .godot/
 /android/
+
+# Local AI tooling / agent configuration
+opencode.json
+addons/godot_mcp/
+addons/ziva_agent/
+
+# Temporary debug, capture and verification harnesses
+scenes/_debug_*.gd
+scenes/_debug_*.gd.uid
+scenes/_verify_*.gd
+scenes/_verify_*.gd.uid
+scenes/_walk_test.gd
+scenes/_walk_test.gd.uid
+scenes/_capture_*.gd
+scenes/_capture_*.gd.uid
+scripts/test_minimal*.gd
+scripts/test_minimal*.gd.uid
+
+# Stray nested copy / editor temporary files
+Invasion/
+*.tmp

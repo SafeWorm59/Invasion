@@ -1,0 +1,43 @@
+[gd_scene load_steps=9 format=3 uid="uid://clarynxlevel3"]
+
+[ext_resource type="Script" path="res://scenes/larynx_environment.gd" id="1_env"]
+[ext_resource type="Script" path="res://scenes/larynx_anatomy.gd" id="8_anatomy"]
+[ext_resource type="Script" path="res://scenes/larynx_background.gd" id="2_bg"]
+[ext_resource type="Script" path="res://scenes/larynx_tissue.gd" id="3_tissue"]
+[ext_resource type="Script" path="res://scenes/larynx_ridges.gd" id="4_ridges"]
+[ext_resource type="Script" path="res://scenes/larynx_body.gd" id="5_body"]
+[ext_resource type="PackedScene" path="res://scenes/player.tscn" id="6_player"]
+[ext_resource type="PackedScene" path="res://scenes/hud.tscn" id="7_hud"]
+
+[node name="Larynx" type="Node2D"]
+script = ExtResource("1_env")
+
+[node name="Environment" type="Node2D" parent="."]
+
+[node name="Background" type="ColorRect" parent="Environment"]
+script = ExtResource("2_bg")
+
+[node name="Tissue" type="ColorRect" parent="Environment"]
+script = ExtResource("3_tissue")
+
+[node name="Ridges" type="Node2D" parent="Environment"]
+script = ExtResource("4_ridges")
+
+[node name="Anatomy" type="Node2D" parent="Environment"]
+script = ExtResource("8_anatomy")
+
+[node name="BoundaryWalls" type="StaticBody2D" parent="."]
+collision_layer = 1
+collision_mask = 0
+script = ExtResource("5_body")
+
+[node name="RidgeWalls" type="StaticBody2D" parent="."]
+collision_layer = 1
+collision_mask = 0
+script = ExtResource("5_body")
+ridges = true
+
+[node name="Player" parent="." instance=ExtResource("6_player")]
+position = Vector2(0, -2750)
+
+[node name="HUD" parent="." instance=ExtResource("7_hud")]

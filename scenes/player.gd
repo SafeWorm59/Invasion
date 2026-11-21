@@ -491,6 +491,26 @@ func _on_host_cell_replication_completed(cell: Node2D) -> void:
 	print("Replication complete! Virus is emerging!")
 
 
+## Called by a host cell that an NKT cell has just destroyed. The virus is
+## pushed out of the dying cell instead of being trapped inside a freed node.
+func force_eject(cell: Node2D) -> void:
+	if is_dead:
+		return
+
+	if not inside_cell or host_cell != cell:
+		return
+
+	var exit_position: Vector2 = get_cell_exit_position(cell)
+
+	start_cell_transition(
+		"exit",
+		global_position,
+		exit_position
+	)
+
+	print("Host cell destroyed! Virus forced out!")
+
+
 func start_cell_transition(
 	transition: String,
 	start_position: Vector2,

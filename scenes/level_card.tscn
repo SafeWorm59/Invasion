@@ -1,0 +1,64 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/level_card.gd" id="1_card"]
+[ext_resource type="Script" path="res://scripts/level_preview_draw.gd" id="2_prev"]
+
+[node name="LevelCard" type="PanelContainer"]
+custom_minimum_size = Vector2(215, 380)
+offset_right = 215.0
+offset_bottom = 380.0
+size_flags_vertical = 3
+mouse_filter = 0
+script = ExtResource("1_card")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="."]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="HeaderBox" type="HBoxContainer" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="NumberLabel" type="Label" parent="VBoxContainer/HeaderBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.85, 0.5, 0.6, 1)
+theme_override_font_sizes/font_size = 12
+text = "PHASE 01"
+
+[node name="StatusBadge" type="Label" parent="VBoxContainer/HeaderBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.35, 0.95, 0.6, 1)
+theme_override_font_sizes/font_size = 11
+text = "AVAILABLE"
+horizontal_alignment = 2
+
+[node name="PreviewContainer" type="MarginContainer" parent="VBoxContainer"]
+custom_minimum_size = Vector2(190, 120)
+layout_mode = 2
+
+[node name="PreviewDraw" type="Control" parent="VBoxContainer/PreviewContainer"]
+layout_mode = 2
+mouse_filter = 2
+script = ExtResource("2_prev")
+
+[node name="TitleLabel" type="Label" parent="VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.92, 0.94, 1)
+theme_override_font_sizes/font_size = 16
+text = "NASAL PASSAGE"
+autowrap_mode = 2
+
+[node name="DescLabel" type="Label" parent="VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_colors/font_color = Color(0.75, 0.7, 0.72, 1)
+theme_override_font_sizes/font_size = 11
+text = "The first stage of the invasion, taking place inside the nasal passage."
+autowrap_mode = 2
+text_overrun_behavior = 3
+
+[node name="ActionButton" type="Button" parent="VBoxContainer"]
+custom_minimum_size = Vector2(0, 38)
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "INFILTRATE"

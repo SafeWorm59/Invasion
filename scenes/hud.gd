@@ -1,6 +1,8 @@
 
 extends CanvasLayer
 
+const Minimap := preload("res://scenes/minimap.gd")
+
 @onready var follow_button: Button = $CommandButtons/VBoxContainer/FollowButton
 @onready var capture_button: Button = $CommandButtons/VBoxContainer/CaptureButton
 @onready var defend_button: Button = $CommandButtons/VBoxContainer/DefendButton
@@ -15,6 +17,11 @@ var objective_status: Label
 var join_attack_button: Button
 var nearby_target: Node2D = null
 
+var objective_name: String = "HOST CELLS"
+
+var notification_box: VBoxContainer
+var _notification_cooldowns: Dictionary = {}
+
 
 func _ready() -> void:
 	add_to_group("hud")
@@ -25,6 +32,12 @@ func _ready() -> void:
 
 	update_player_health(100, 100)
 	create_objective_display()
+	create_notification_display()
+
+	# Reusable level minimap, pinned to the top-right corner.
+	var minimap := Minimap.new()
+	minimap.name = "Minimap"
+	add_child(minimap)
 
 	# Create the Join Attack button dynamically.
 	join_attack_button = Button.new()
@@ -38,8 +51,13 @@ func _ready() -> void:
 	join_attack_button.pressed.connect(_on_join_attack_pressed)
 
 
-func _process(_delta: float) -> void:
-	update_join_attack_button()
+var _join_attack_check_timer: float = 0.0
+
+func _process(delta: float) -> void:
+	_join_attack_check_timer -= delta
+	if _join_attack_check_timer <= 0.0:
+		_join_attack_check_timer = 0.1
+		update_join_attack_button()
 
 
 func update_player_health(current: int, maximum: int) -> void:
@@ -210,24 +228,86 @@ func create_objective_display() -> void:
 	layout.add_child(objective_bar)
 
 	objective_status = Label.new()
-	objective_status.text = "Exit locked: eliminate all Neutrophils."
+	objective_status.text = "Exit locked: eliminate all " + objective_name + "."
 	objective_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	layout.add_child(objective_status)
 
 
-func update_level_objective(defeated_count: int, total_count: int) -> void:
+# General objective display: an explicit title line, a status line, and a
+# progress bar. Lets a level drive a multi-stage objective (see Level 2).
+func set_objective(title: String, status: String, current: int, total: int) -> void:
 	if not is_instance_valid(objective_panel):
 		return
 
-	objective_bar.max_value = maxi(total_count, 1)
-	objective_bar.value = defeated_count
+	objective_bar.max_value = maxi(total, 1)
+	objective_bar.value = current
+	objective_label.text = title
+	objective_status.text = status
 
-	objective_label.text = "NEUTROPHILS: %d / %d" % [
-		defeated_count,
-		total_count
-	]
+
+func update_level_objective(defeated_count: int, total_count: int, custom_name: String = "NEUTROPHILS") -> void:
+	var title := "%s: %d / %d" % [custom_name, defeated_count, total_count]
 
 	if defeated_count >= total_count:
-		objective_status.text = "EXIT UNLOCKED! Reach the exit."
+		set_objective(title, "EXIT UNLOCKED! Reach the exit.", defeated_count, total_count)
 	else:
-		objective_status.text = "Exit locked: eliminate all Neutrophils."
+		set_objective(title, "Exit locked: eliminate all " + custom_name + ".", defeated_count, total_count)
+
+
+# --------------------------------------------------------------------------
+# Brief gameplay notifications (Level 4 NKT feedback)
+# --------------------------------------------------------------------------
+
+func create_notification_display() -> void:
+	notification_box = VBoxContainer.new()
+	notification_box.name = "Notifications"
+	notification_box.anchor_left = 0.5
+	notification_box.anchor_right = 0.5
+	notification_box.anchor_top = 1.0
+	notification_box.anchor_bottom = 1.0
+	notification_box.offset_left = -280.0
+	notification_box.offset_right = 280.0
+	notification_box.offset_top = -176.0
+	notification_box.offset_bottom = -96.0
+	notification_box.alignment = BoxContainer.ALIGNMENT_END
+	notification_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	notification_box.add_theme_constant_override("separation", 2)
+	add_child(notification_box)
+
+
+## Short, throttled message near the bottom of the screen. Reusing the same
+## text within a few seconds is dropped so several NKT cells cannot spam it.
+func show_notification(text: String, color: Color = Color(1.0, 0.85, 0.45)) -> void:
+	if not is_instance_valid(notification_box):
+		create_notification_display()
+
+	if not is_instance_valid(notification_box):
+		return
+
+	var now := float(Time.get_ticks_msec()) / 1000.0
+	if _notification_cooldowns.has(text):
+		if now - float(_notification_cooldowns[text]) < 3.0:
+			return
+	_notification_cooldowns[text] = now
+
+	# Keep at most four messages alive at once.
+	while notification_box.get_child_count() >= 4:
+		var oldest := notification_box.get_child(0)
+		notification_box.remove_child(oldest)
+		oldest.queue_free()
+
+	var label := Label.new()
+	label.text = text
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.add_theme_font_size_override("font_size", 16)
+	label.add_theme_color_override("font_color", color)
+	label.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.85))
+	label.add_theme_constant_override("shadow_offset_x", 1)
+	label.add_theme_constant_override("shadow_offset_y", 1)
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	notification_box.add_child(label)
+
+	var tween := create_tween()
+	tween.tween_interval(1.5)
+	tween.tween_property(label, "modulate:a", 0.0, 0.7)
+	tween.tween_callback(label.queue_free)

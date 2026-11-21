@@ -46,6 +46,12 @@ var death_timer: float = 0.0
 var engulf_timer: float = 0.0
 var engulf_target: Node2D = null
 
+## Host-cell ownership. Set by cell.gd when the minion is spawned, so an NKT
+## cell can remove exactly the minions belonging to the cell it destroys.
+var source_cell: Node2D = null
+var owner_cell_id: int = 0
+var dissolved: bool = false
+
 var fragment_angles: Array[float] = []
 var fragment_distances: Array[float] = []
 
@@ -161,6 +167,9 @@ func find_nearest_immune_cell() -> Node2D:
 
 
 func _physics_process(delta: float) -> void:
+	if dissolved:
+		return
+
 	if being_engulfed:
 		update_engulf_animation(delta)
 		return
@@ -356,7 +365,7 @@ func move_toward_position(
 
 
 func take_damage(amount: int) -> void:
-	if dying or being_engulfed or amount <= 0:
+	if dying or being_engulfed or dissolved or amount <= 0:
 		return
 
 	health = max(health - amount, 0)
@@ -367,7 +376,7 @@ func take_damage(amount: int) -> void:
 
 
 func start_death_animation() -> void:
-	if dying or being_engulfed:
+	if dying or being_engulfed or dissolved:
 		return
 
 	dying = true
@@ -391,8 +400,29 @@ func start_death_animation() -> void:
 	queue_redraw()
 
 
+## Removed instantly when the NKT cell destroys the host cell that spawned it.
+## Guards against duplicate cleanup and against continuing to act for a frame.
+func dissolve() -> void:
+	if dissolved:
+		return
+
+	dissolved = true
+	dying = false
+	being_engulfed = false
+	velocity = Vector2.ZERO
+	is_attacking = false
+	attack_animation_timer = 0.0
+
+	remove_from_group("minions")
+	collision_layer = 0
+	collision_mask = 0
+	set_physics_process(false)
+
+	queue_free()
+
+
 func start_engulf_animation(immune_cell: Node2D) -> void:
-	if dying or being_engulfed:
+	if dying or being_engulfed or dissolved:
 		return
 
 	if not is_instance_valid(immune_cell):

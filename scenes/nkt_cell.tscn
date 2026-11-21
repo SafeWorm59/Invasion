@@ -1,0 +1,14 @@
+[gd_scene format=3 uid="uid://e810fbp5rm3y"]
+
+[ext_resource type="Script" path="res://scenes/nkt_cell.gd" id="1_nkt"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_nkt"]
+radius = 26.0
+
+[node name="NKTCell" type="CharacterBody2D" groups=["nkt_cells"]]
+collision_layer = 1
+collision_mask = 1
+script = ExtResource("1_nkt")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CircleShape2D_nkt")

@@ -1,0 +1,122 @@
+[gd_scene format=3 uid="uid://hrph1hw31rd2"]
+
+[ext_resource type="Script" uid="uid://dxui1ac4gbutp" path="res://scripts/level_selection.gd" id="1_sel"]
+[ext_resource type="Script" uid="uid://4p471is6b281" path="res://scripts/menu_background.gd" id="2_bg"]
+
+[node name="LevelSelection" type="Control" unique_id=682761467]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_sel")
+
+[node name="MenuBackground" type="Control" parent="." unique_id=2114929546]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("2_bg")
+
+[node name="MainLayout" type="VBoxContainer" parent="." unique_id=2108777844]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 40.0
+offset_top = 24.0
+offset_right = -40.0
+offset_bottom = -24.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 14
+
+[node name="HeaderBox" type="VBoxContainer" parent="MainLayout" unique_id=3667697]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="TitleLabel" type="Label" parent="MainLayout/HeaderBox" unique_id=1953346936]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.92, 0.94, 1)
+theme_override_colors/font_shadow_color = Color(0.7, 0.1, 0.25, 0.6)
+theme_override_constants/shadow_offset_x = 0
+theme_override_constants/shadow_offset_y = 2
+theme_override_font_sizes/font_size = 28
+text = "LEVEL SELECTION"
+
+[node name="SubtitleLabel" type="Label" parent="MainLayout/HeaderBox" unique_id=640208317]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.85, 0.45, 0.55, 1)
+theme_override_font_sizes/font_size = 13
+text = "TARGET HOST ANATOMY // 5 REGIONS IDENTIFIED"
+
+[node name="ScrollContainer" type="ScrollContainer" parent="MainLayout" unique_id=167640558]
+custom_minimum_size = Vector2(0, 395)
+layout_mode = 2
+size_flags_vertical = 3
+vertical_scroll_mode = 0
+
+[node name="CardsHBox" type="HBoxContainer" parent="MainLayout/ScrollContainer" unique_id=229165672]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 16
+alignment = 1
+
+[node name="DetailPanel" type="PanelContainer" parent="MainLayout" unique_id=1027797919]
+custom_minimum_size = Vector2(0, 110)
+layout_mode = 2
+
+[node name="Margin" type="MarginContainer" parent="MainLayout/DetailPanel" unique_id=179151145]
+layout_mode = 2
+theme_override_constants/margin_left = 18
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 18
+theme_override_constants/margin_bottom = 10
+
+[node name="VBox" type="VBoxContainer" parent="MainLayout/DetailPanel/Margin" unique_id=1053778351]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="DetailTitle" type="Label" parent="MainLayout/DetailPanel/Margin/VBox" unique_id=1719506093]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.88, 0.92, 1)
+theme_override_font_sizes/font_size = 18
+text = "PHASE 01: NASAL PASSAGE"
+
+[node name="DetailStatus" type="Label" parent="MainLayout/DetailPanel/Margin/VBox" unique_id=1536014168]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.35, 0.95, 0.6, 1)
+theme_override_font_sizes/font_size = 12
+text = "STATUS: INFILTRATION VECTOR AVAILABLE"
+
+[node name="DetailDesc" type="Label" parent="MainLayout/DetailPanel/Margin/VBox" unique_id=1334021643]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.8, 0.75, 0.78, 1)
+theme_override_font_sizes/font_size = 13
+text = "The first stage of the invasion, taking place inside the nasal passage."
+autowrap_mode = 2
+
+[node name="FooterBox" type="HBoxContainer" parent="MainLayout" unique_id=697490107]
+layout_mode = 2
+theme_override_constants/separation = 20
+
+[node name="BackButton" type="Button" parent="MainLayout/FooterBox" unique_id=1284894317]
+custom_minimum_size = Vector2(200, 48)
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "« BACK TO MENU"
+
+[node name="Spacer" type="Control" parent="MainLayout/FooterBox" unique_id=107538159]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="LaunchButton" type="Button" parent="MainLayout/FooterBox" unique_id=1491867581]
+custom_minimum_size = Vector2(260, 48)
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "INFILTRATE TARGET"

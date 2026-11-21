@@ -11,9 +11,14 @@ config_version=5
 [application]
 
 config/name="Invasion"
-run/main_scene="uid://cxwkkkw3pa8sn"
+run/main_scene="res://scenes/main_menu.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 config/icon="res://icon.svg"
+
+[autoload]
+
+GameManager="*uid://dajm81jiptkii"
+MCPRuntimeProbe="*uid://ccjof6txapfes"
 
 [display]
 
@@ -21,6 +26,10 @@ window/size/viewport_width=1280
 window/size/viewport_height=720
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/godot_mcp/plugin.cfg")
 
 [input]
 
