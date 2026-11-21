@@ -22,3 +22,7 @@ scripts/test_minimal*.gd.uid
 # Stray nested copy / editor temporary files
 Invasion/
 *.tmp
+
+# Development variant / backup scenes (not for publication)
+scenes/pharynx_legacy_backup.tscn
+scenes/pharynx_new.tscn
