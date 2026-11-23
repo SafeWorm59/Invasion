@@ -355,8 +355,16 @@ func _on_exit_body_entered(body: Node2D) -> void:
 
 
 func _show_completion_popup() -> void:
+	GameManager.unlock_level(5)
 	var popup := AcceptDialog.new()
 	popup.title = "LEVEL COMPLETED!"
-	popup.dialog_text = "Trachea cleared - every host cell has been infected. The invasion reaches the bronchi and lungs."
+	popup.dialog_text = "Trachea cleared - every host cell has been infected. Level 5: Lungs is now unlocked."
+	popup.get_ok_button().text = "CONTINUE TO LUNGS"
 	get_tree().root.add_child(popup)
+	popup.confirmed.connect(_on_completion_confirmed.bind(popup))
 	popup.popup_centered()
+
+
+func _on_completion_confirmed(popup: AcceptDialog) -> void:
+	popup.queue_free()
+	GameManager.load_level(5)

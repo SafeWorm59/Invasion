@@ -1,6 +1,7 @@
 # Godot 4+ specific ignores
 .godot/
 /android/
+builds/web/
 
 # Local AI tooling / agent configuration
 opencode.json

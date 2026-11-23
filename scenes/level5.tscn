@@ -1,0 +1,33 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://scenes/lungs_environment.gd" id="1_env"]
+[ext_resource type="Script" path="res://scenes/lungs_anatomy.gd" id="2_anatomy"]
+[ext_resource type="Script" path="res://scenes/lungs_background.gd" id="3_bg"]
+[ext_resource type="Script" path="res://scenes/lungs_tissue.gd" id="4_tissue"]
+[ext_resource type="Script" path="res://scenes/lungs_body.gd" id="5_body"]
+[ext_resource type="PackedScene" path="res://scenes/player.tscn" id="6_player"]
+[ext_resource type="PackedScene" path="res://scenes/hud.tscn" id="7_hud"]
+
+[node name="Lungs" type="Node2D"]
+script = ExtResource("1_env")
+
+[node name="Environment" type="Node2D" parent="."]
+
+[node name="Background" type="ColorRect" parent="Environment"]
+script = ExtResource("3_bg")
+
+[node name="Tissue" type="ColorRect" parent="Environment"]
+script = ExtResource("4_tissue")
+
+[node name="Anatomy" type="Node2D" parent="Environment"]
+script = ExtResource("2_anatomy")
+
+[node name="BoundaryWalls" type="StaticBody2D" parent="."]
+collision_layer = 1
+collision_mask = 0
+script = ExtResource("5_body")
+
+[node name="Player" parent="." instance=ExtResource("6_player")]
+position = Vector2(0, -2860)
+
+[node name="HUD" parent="." instance=ExtResource("7_hud")]

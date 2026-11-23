@@ -66,9 +66,18 @@ func select_level(id: int) -> void:
 	info_desc.text = lvl.get("description", "")
 
 	if is_locked:
-		info_status.text = "STATUS: LOCKED / COMING SOON"
+		var previous_level_id := id - 1
+		var previous_level_available := (
+			previous_level_id > 0
+			and GameManager.is_level_available(previous_level_id)
+		)
+		if previous_level_available:
+			info_status.text = "STATUS: COMPLETE LEVEL %02d TO UNLOCK" % previous_level_id
+			launch_button.text = "COMPLETE LEVEL %02d TO UNLOCK" % previous_level_id
+		else:
+			info_status.text = "STATUS: LOCKED / COMING SOON"
+			launch_button.text = "LEVEL LOCKED"
 		info_status.add_theme_color_override("font_color", Color(0.7, 0.5, 0.5))
-		launch_button.text = "LEVEL LOCKED"
 		launch_button.disabled = true
 	else:
 		info_status.text = "STATUS: INFILTRATION VECTOR AVAILABLE"

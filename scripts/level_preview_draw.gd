@@ -62,6 +62,8 @@ func _draw() -> void:
 		_draw_level_3_procedural()
 	elif level_id == 4:
 		_draw_level_4_procedural()
+	elif level_id == 5:
+		_draw_level_5_procedural()
 
 	# Border overlay around thumbnail
 	draw_rect(rect, Color(accent_color.r, accent_color.g, accent_color.b, 0.5), false, 1.5)
@@ -287,3 +289,47 @@ func _draw_level_4_procedural() -> void:
 		var p1 := v_pos + Vector2(cos(ang), sin(ang)) * 10.0
 		var p2 := v_pos + Vector2(cos(ang), sin(ang)) * 15.0
 		draw_line(p1, p2, Color(1.0, 0.4, 0.5), 2.0)
+
+
+func _draw_level_5_procedural() -> void:
+	# Level 5: paired lung branches opening into clusters of alveoli.
+	draw_rect(Rect2(Vector2.ZERO, size), Color(0.08, 0.04, 0.08, 1.0))
+	var airway := Color(0.68, 0.36, 0.51, 0.9)
+	var airway_hi := Color(0.95, 0.69, 0.75, 0.82)
+	var junction := Vector2(size.x * 0.5, size.y * 0.42)
+	var trunk_top := Vector2(size.x * 0.5, size.y * 0.08)
+	draw_line(trunk_top, junction, airway, 16.0, true)
+	draw_line(trunk_top, junction, airway_hi, 7.0, true)
+
+	var left_main := Vector2(size.x * 0.30, size.y * 0.62)
+	var right_main := Vector2(size.x * 0.70, size.y * 0.62)
+	for endpoint in [left_main, right_main]:
+		draw_line(junction, endpoint, airway, 12.0, true)
+		draw_line(junction, endpoint, airway_hi, 5.0, true)
+
+	var alveoli := [
+		Vector2(size.x * 0.16, size.y * 0.31),
+		Vector2(size.x * 0.18, size.y * 0.82),
+		Vector2(size.x * 0.84, size.y * 0.31),
+		Vector2(size.x * 0.82, size.y * 0.82),
+	]
+	var branches := [
+		[left_main, alveoli[0]],
+		[left_main, alveoli[1]],
+		[right_main, alveoli[2]],
+		[right_main, alveoli[3]],
+	]
+	for branch in branches:
+		draw_line(branch[0], branch[1], airway, 7.0, true)
+		draw_line(branch[0], branch[1], airway_hi, 3.0, true)
+
+	for center in alveoli:
+		for i in range(7):
+			var angle := TAU * float(i) / 7.0
+			var offset := Vector2(cos(angle), sin(angle)) * 11.0
+			draw_circle(center + offset, 6.0, Color(0.78, 0.48, 0.65, 0.9))
+			draw_circle(center + offset, 3.2, Color(0.96, 0.74, 0.80, 0.85))
+
+	var b_cell := Vector2(size.x * 0.73, size.y * 0.48)
+	draw_circle(b_cell, 7.0, Color(0.22, 0.68, 0.76, 1.0))
+	draw_circle(b_cell, 3.0, Color(0.63, 0.92, 0.90, 1.0))
