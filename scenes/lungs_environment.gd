@@ -4,11 +4,14 @@ const Map := preload("res://scenes/lungs_map.gd")
 const LevelGameplay := preload("res://scenes/lungs_level.gd")
 const CAMERA_MARGIN := 220.0
 const CAP_SEGMENTS := 16
+const PLAYER_BOUNDARY_CLEARANCE := 8.0
 const SAVE_CONFIRMATION_SCENE := "res://scenes/save_confirmation.tscn"
 
-var _player: Node2D = null
+var _player: CharacterBody2D = null
 var _region: int = -1
 var _chamber: int = -1
+var _last_valid_player_position := Vector2.ZERO
+var _has_last_valid_player_position: bool = false
 
 static var _dialog_instance: Control = null
 static var _is_showing: bool = false
@@ -16,9 +19,11 @@ static var _is_showing: bool = false
 
 func _ready() -> void:
 	add_to_group("level_manager")
-	_player = get_node_or_null("Player") as Node2D
+	_player = get_node_or_null("Player") as CharacterBody2D
 	if _player != null:
 		_player.global_position = Map.spawn_point()
+		_last_valid_player_position = _player.global_position
+		_has_last_valid_player_position = true
 	_configure_camera()
 	_configure_hud()
 	print(
@@ -57,10 +62,26 @@ func _configure_hud() -> void:
 
 func _process(_delta: float) -> void:
 	if _player == null:
-		_player = get_node_or_null("Player") as Node2D
+		_player = get_node_or_null("Player") as CharacterBody2D
 		if _player == null:
 			return
+		if Map.walkable(_player.global_position, PLAYER_BOUNDARY_CLEARANCE):
+			_last_valid_player_position = _player.global_position
+			_has_last_valid_player_position = true
+	_keep_player_inside_lungs()
 	_report(_player.global_position)
+
+
+func _keep_player_inside_lungs() -> void:
+	if not is_instance_valid(_player):
+		return
+
+	if Map.walkable(_player.global_position, PLAYER_BOUNDARY_CLEARANCE):
+		_last_valid_player_position = _player.global_position
+		_has_last_valid_player_position = true
+	elif _has_last_valid_player_position:
+		_player.global_position = _last_valid_player_position
+		_player.velocity = Vector2.ZERO
 
 
 func _report(point: Vector2) -> void:

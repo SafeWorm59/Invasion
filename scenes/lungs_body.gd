@@ -17,4 +17,5 @@ func rebuild() -> void:
 		add_child(wall)
 	var shape := ConcavePolygonShape2D.new()
 	shape.set_segments(Map.wall_segments())
+	shape.backface_collision = true
 	wall.shape = shape

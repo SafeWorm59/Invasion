@@ -13,6 +13,8 @@ const PROJECTILE_SCENE := preload("res://scenes/antibody_projectile.tscn")
 @export var attack_cooldown: float = 2.35
 @export var projectile_speed: float = 340.0
 @export var projectile_damage: int = 10
+@export_range(1, 7, 1) var projectile_count: int = 3
+@export_range(0.0, 60.0, 1.0) var spread_angle_degrees: float = 24.0
 @export var max_health: int = 80
 @export var body_radius: float = 28.0
 
@@ -100,11 +102,24 @@ func _fire_at_player() -> void:
 		push_error("[BCell] Cannot fire antibody: no current scene.")
 		return
 
-	var projectile := PROJECTILE_SCENE.instantiate() as Area2D
-	scene_root.add_child(projectile)
-	projectile.global_position = global_position + direction * (body_radius + 16.0)
-	projectile.set("speed", projectile_speed)
-	projectile.call("setup", direction, projectile_damage, self)
+	var shot_count := maxi(projectile_count, 1)
+	for shot_index in range(shot_count):
+		var spread_offset := 0.0
+		if shot_count > 1:
+			var spread_fraction := float(shot_index) / float(shot_count - 1)
+			spread_offset = deg_to_rad(
+				-spread_angle_degrees * 0.5
+				+ spread_angle_degrees * spread_fraction
+			)
+
+		var shot_direction := direction.rotated(spread_offset)
+		var projectile := PROJECTILE_SCENE.instantiate() as Area2D
+		scene_root.add_child(projectile)
+		projectile.global_position = (
+			global_position + shot_direction * (body_radius + 16.0)
+		)
+		projectile.set("speed", projectile_speed)
+		projectile.call("setup", shot_direction, projectile_damage, self)
 	_cooldown = attack_cooldown
 
 

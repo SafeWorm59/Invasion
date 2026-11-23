@@ -33,6 +33,8 @@ var _total_cells: int = 0
 var _completed_cells: int = 0
 var _exit: Area2D = null
 var _exit_visual: Polygon2D = null
+var _exit_ring: Line2D = null
+var _exit_label: Label = null
 var _exit_locked: bool = true
 var _level_complete: bool = false
 
@@ -175,13 +177,41 @@ func _create_exit() -> void:
 	shape.shape = circle
 	_exit.add_child(shape)
 
+	_exit_ring = Line2D.new()
+	_exit_ring.name = "ExitRing"
+	_exit_ring.points = _closed_circle_points(EXIT_RADIUS + 14.0)
+	_exit_ring.width = 7.0
+	_exit_ring.joint_mode = Line2D.LINE_JOINT_ROUND
+	_exit_ring.antialiased = true
+	_exit.add_child(_exit_ring)
+
 	_exit_visual = Polygon2D.new()
 	_exit_visual.polygon = _circle_points(EXIT_RADIUS)
 	_exit.add_child(_exit_visual)
+
+	_exit_label = Label.new()
+	_exit_label.name = "ExitLabel"
+	_exit_label.position = Vector2(-120.0, -126.0)
+	_exit_label.size = Vector2(240.0, 42.0)
+	_exit_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_exit_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_exit_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_exit_label.add_theme_font_size_override("font_size", 28)
+	_exit_label.add_theme_color_override("font_color", Color.WHITE)
+	_exit_label.add_theme_color_override("font_outline_color", Color("#35101D"))
+	_exit_label.add_theme_constant_override("outline_size", 6)
+	_exit.add_child(_exit_label)
+
 	_exit.global_position = _walkable_near(MAP.route_end(), 40.0)
 	_exit.body_entered.connect(_on_exit_body_entered)
 	add_child(_exit)
 	_apply_exit_visual()
+
+
+func _closed_circle_points(radius: float) -> PackedVector2Array:
+	var points := _circle_points(radius)
+	points.append(points[0])
+	return points
 
 
 func _circle_points(radius: float) -> PackedVector2Array:
@@ -193,13 +223,18 @@ func _circle_points(radius: float) -> PackedVector2Array:
 
 
 func _apply_exit_visual() -> void:
-	if _exit_visual == null:
+	if _exit_visual == null or _exit_ring == null or _exit_label == null:
 		return
-	_exit_visual.color = (
-		Color(0.90, 0.30, 0.30, 0.35)
-		if _exit_locked
-		else Color(0.35, 0.90, 0.45, 0.45)
-	)
+	if _exit_locked:
+		_exit_visual.color = Color(0.90, 0.30, 0.30, 0.35)
+		_exit_ring.default_color = Color("#F46B76")
+		_exit_label.text = "EXIT LOCKED"
+		_exit_label.add_theme_color_override("font_color", Color("#FFE1E3"))
+	else:
+		_exit_visual.color = Color(0.35, 0.90, 0.45, 0.45)
+		_exit_ring.default_color = Color("#86F0A2")
+		_exit_label.text = "EXIT"
+		_exit_label.add_theme_color_override("font_color", Color("#D9FFE0"))
 
 
 func _update_objective() -> void:
@@ -241,7 +276,7 @@ func _on_exit_body_entered(body: Node2D) -> void:
 func _show_completion_popup() -> void:
 	var popup := AcceptDialog.new()
 	popup.title = "LEVEL COMPLETED!"
-	popup.dialog_text = "Both lungs cleared - every host cell has been infected."
+	popup.dialog_text = "Both lungs cleared. Every host cell has been infected."
 	popup.get_ok_button().text = "RETURN TO LEVEL SELECTION"
 	get_tree().root.add_child(popup)
 	popup.confirmed.connect(_on_completion_confirmed.bind(popup))

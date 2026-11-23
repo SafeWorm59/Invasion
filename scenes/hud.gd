@@ -2,6 +2,7 @@
 extends CanvasLayer
 
 const Minimap := preload("res://scenes/minimap.gd")
+const MobileControls := preload("res://scenes/mobile_controls.gd")
 
 @onready var follow_button: Button = $CommandButtons/VBoxContainer/FollowButton
 @onready var capture_button: Button = $CommandButtons/VBoxContainer/CaptureButton
@@ -38,6 +39,10 @@ func _ready() -> void:
 	var minimap := Minimap.new()
 	minimap.name = "Minimap"
 	add_child(minimap)
+
+	var mobile_controls := MobileControls.new()
+	mobile_controls.name = "MobileControls"
+	add_child(mobile_controls)
 
 	# Create the Join Attack button dynamically.
 	join_attack_button = Button.new()
