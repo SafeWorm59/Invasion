@@ -134,7 +134,6 @@ position = Vector2(-82, -2361)
 position = Vector2(-1397, -1965)
 
 [node name="Neutrophil3" parent="." unique_id=672923051 instance=ExtResource("13_8sfim")]
-visible = false
 position = Vector2(545, -1564)
 
 [node name="Neutrophil4" parent="." unique_id=692050124 instance=ExtResource("13_8sfim")]

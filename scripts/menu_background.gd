@@ -18,12 +18,18 @@ const PARTICLE_COUNT: int = 45
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	resized.connect(_on_resized)
 	init_particles()
+
+
+func _on_resized() -> void:
+	init_particles()
+	queue_redraw()
 
 
 func init_particles() -> void:
 	particles.clear()
-	var vp_size := get_viewport_rect().size
+	var vp_size := size
 	if vp_size == Vector2.ZERO:
 		vp_size = Vector2(1280, 720)
 
@@ -51,7 +57,7 @@ func init_particles() -> void:
 
 func _process(delta: float) -> void:
 	time += delta
-	var vp_size := get_viewport_rect().size
+	var vp_size := size
 	if vp_size == Vector2.ZERO:
 		vp_size = Vector2(1280, 720)
 
@@ -75,19 +81,19 @@ func _process(delta: float) -> void:
 
 
 func _draw() -> void:
-	var rect := get_viewport_rect()
-	if rect.size == Vector2.ZERO:
-		rect.size = Vector2(1280, 720)
+	var rect_size := size
+	if rect_size == Vector2.ZERO:
+		rect_size = Vector2(1280, 720)
 
 	# Deep biological gradient: dark maroon/crimson to abyssal black
 	var top_color := Color(0.15, 0.04, 0.07, 1.0)
 	var bottom_color := Color(0.05, 0.01, 0.02, 1.0)
-	draw_rect(rect, bottom_color)
+	draw_rect(Rect2(Vector2.ZERO, rect_size), bottom_color)
 
 	# Soft ambient organic radial glow in the center-top
-	var center := Vector2(rect.size.x * 0.5, rect.size.y * 0.4)
-	draw_circle(center, rect.size.x * 0.6, Color(0.35, 0.06, 0.12, 0.20))
-	draw_circle(center, rect.size.x * 0.35, Color(0.50, 0.08, 0.16, 0.15))
+	var center := Vector2(rect_size.x * 0.5, rect_size.y * 0.4)
+	draw_circle(center, rect_size.x * 0.6, Color(0.35, 0.06, 0.12, 0.20))
+	draw_circle(center, rect_size.x * 0.35, Color(0.50, 0.08, 0.16, 0.15))
 
 	# Draw particles
 	for p in particles:
@@ -112,5 +118,5 @@ func _draw() -> void:
 				draw_circle(p.position, p.radius, c)
 
 	# Vignette border darkness
-	draw_rect(Rect2(0, 0, rect.size.x, 80), Color(0.02, 0.0, 0.01, 0.4))
-	draw_rect(Rect2(0, rect.size.y - 80, rect.size.x, 80), Color(0.02, 0.0, 0.01, 0.6))
+	draw_rect(Rect2(0, 0, rect_size.x, 80), Color(0.02, 0.0, 0.01, 0.4))
+	draw_rect(Rect2(0, rect_size.y - 80, rect_size.x, 80), Color(0.02, 0.0, 0.01, 0.6))

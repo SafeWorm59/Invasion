@@ -50,6 +50,11 @@ const SCAN_LINE_ALPHA := 0.22
 @export var stuck_skip_time: float = 2.2
 @export var notify_radius: float = 1250.0
 
+
+# NKT attack settings
+@export var player_contact_damage: int = 5
+@export var player_attack_cooldown: float = 1.0
+
 var state: State = State.SURVEILLANCE
 var health: int = 140
 var defeated: bool = false
@@ -90,6 +95,8 @@ var _effect_target: Vector2 = Vector2.ZERO
 
 var _home: Vector2 = Vector2.ZERO
 
+# NKT contact attack cooldown
+var _player_attack_timer: float = 0.0
 
 func _ready() -> void:
 	add_to_group("nkt_cells")
@@ -142,6 +149,7 @@ func _physics_process(delta: float) -> void:
 		player = get_tree().get_first_node_in_group("player") as Node2D
 
 	_update_contact_disruption(delta)
+	_update_player_contact_attack(delta)
 
 	if start_delay > 0.0:
 		start_delay -= delta
@@ -406,13 +414,43 @@ func _exit_tree() -> void:
 # Player counterplay: disrupt the NKT by pressing against it
 # --------------------------------------------------------------------------
 
+# NKT contact attack: deals 5 damage every 1 second
+# while the virus player remains within attack range.
+
+func _update_player_contact_attack(delta: float) -> void:
+	_player_attack_timer = maxf(_player_attack_timer - delta, 0.0)
+
+	if not is_instance_valid(player):
+		return
+
+	if defeated or not player.visible:
+		return
+
+	if player.get("is_dead") == true:
+		return
+
+	if _player_attack_timer > 0.0:
+		return
+
+	var attack_range: float = body_radius + 22.0
+
+	if global_position.distance_to(player.global_position) <= attack_range:
+		if player.has_method("take_damage"):
+			player.take_damage(player_contact_damage)
+			_player_attack_timer = player_attack_cooldown
+
+
 func _update_contact_disruption(delta: float) -> void:
 	if not is_instance_valid(player) or not player.visible:
 		return
+
 	if global_position.distance_to(player.global_position) <= body_radius + 22.0:
 		var amount := maxi(1, int(round(contact_disruption_dps * delta)))
 		take_damage(amount)
 
+# --------------------------------------------------------------------------
+# NKT health and defeat
+# --------------------------------------------------------------------------
 
 func take_damage(amount: int) -> void:
 	if defeated or amount <= 0:
@@ -433,7 +471,6 @@ func take_damage(amount: int) -> void:
 
 func is_alerting() -> bool:
 	return state == State.INSPECTING or state == State.ELIMINATING
-
 
 # --------------------------------------------------------------------------
 # Notifications

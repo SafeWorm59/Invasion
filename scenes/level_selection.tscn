@@ -58,6 +58,7 @@ text = "TARGET HOST ANATOMY // 5 REGIONS IDENTIFIED"
 custom_minimum_size = Vector2(0, 395)
 layout_mode = 2
 size_flags_vertical = 3
+horizontal_scroll_mode = 1
 vertical_scroll_mode = 0
 
 [node name="CardsHBox" type="HBoxContainer" parent="MainLayout/ScrollContainer" unique_id=229165672]
@@ -65,7 +66,6 @@ layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 theme_override_constants/separation = 16
-alignment = 1
 
 [node name="DetailPanel" type="PanelContainer" parent="MainLayout" unique_id=1027797919]
 custom_minimum_size = Vector2(0, 110)

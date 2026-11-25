@@ -16,6 +16,10 @@ const MAX_TRAIL_POINTS: int = 24
 const FOLLOW_DISTANCE_MIN: float = 28.0
 const FOLLOW_DISTANCE_MAX: float = 65.0
 const FOLLOW_RANGE: float = 190.0
+const SIMULATION_INTERVAL: float = 1.0 / 30.0
+const TARGET_SCAN_INTERVAL: float = 0.25
+const LEADER_SCAN_INTERVAL: float = 0.5
+const DETECTION_SCAN_INTERVAL: float = 0.15
 
 var source_position: Vector2 = Vector2.ZERO
 var travel_direction: Vector2 = Vector2.RIGHT
@@ -29,12 +33,24 @@ var movement_phase: float = 0.0
 
 var trail_points: Array[Vector2] = []
 var trail_timer: float = 0.0
+var alerted_immune_ids: Dictionary = {}
+var _leader: Node2D = null
+var _immune_target: Node2D = null
+var _leader_scan_timer: float = 0.0
+var _immune_scan_timer: float = 0.0
+var _detection_scan_timer: float = 0.0
+var _simulation_accumulator: float = 0.0
 
 
-func setup(origin: Vector2) -> void:
+func setup(origin: Vector2, shared_alerted_ids: Variant = null) -> void:
 	source_position = origin
 	global_position = origin
 	remaining_lifetime = particle_lifetime
+	alerted_immune_ids = (
+		shared_alerted_ids
+		if shared_alerted_ids is Dictionary
+		else {}
+	)
 
 	add_to_group("cytokine_particles")
 
@@ -56,10 +72,10 @@ func setup(origin: Vector2) -> void:
 	)
 
 	if not is_leader:
-		var leader := find_nearest_leader()
+		_leader = find_nearest_leader()
 
-		if is_instance_valid(leader):
-			travel_direction = leader.travel_direction.rotated(
+		if is_instance_valid(_leader):
+			travel_direction = _leader.travel_direction.rotated(
 				randf_range(-0.7, 0.7)
 			)
 
@@ -118,7 +134,13 @@ func _physics_process(delta: float) -> void:
 		queue_free()
 		return
 
-	movement_phase += delta
+	_simulation_accumulator += delta
+	if _simulation_accumulator < SIMULATION_INTERVAL:
+		return
+
+	var simulation_delta: float = _simulation_accumulator
+	_simulation_accumulator = 0.0
+	movement_phase += simulation_delta
 
 	var desired_direction: Vector2 = travel_direction
 
@@ -128,34 +150,52 @@ func _physics_process(delta: float) -> void:
 		) * 0.75
 
 		desired_direction = travel_direction.rotated(
-			wandering * delta
+			wandering * simulation_delta
 		)
 
-		var immune_cell := find_nearest_immune_cell()
+		_immune_scan_timer -= simulation_delta
+		if (
+			_immune_scan_timer <= 0.0
+			or (
+				is_instance_valid(_immune_target)
+				and not _is_valid_immune_target(_immune_target)
+			)
+		):
+			_immune_target = find_nearest_immune_cell()
+			_immune_scan_timer = TARGET_SCAN_INTERVAL
 
-		if is_instance_valid(immune_cell):
+		if _is_valid_immune_target(_immune_target):
 			var distance_to_immune: float = global_position.distance_to(
-				immune_cell.global_position
+				_immune_target.global_position
 			)
 
 			if distance_to_immune < 260.0:
 				var toward_immune := global_position.direction_to(
-					immune_cell.global_position
+					_immune_target.global_position
 				)
 
 				desired_direction = desired_direction.lerp(
 					toward_immune,
-					minf(delta * 0.8, 0.15)
+					minf(simulation_delta * 0.8, 0.15)
 				).normalized()
 
 	else:
-		var leader := find_nearest_leader()
+		_leader_scan_timer -= simulation_delta
+		if (
+			_leader_scan_timer <= 0.0
+			or (
+				is_instance_valid(_leader)
+				and not _leader.is_in_group("cytokine_leaders")
+			)
+		):
+			_leader = find_nearest_leader()
+			_leader_scan_timer = LEADER_SCAN_INTERVAL
 
-		if is_instance_valid(leader):
-			var leader_direction: Vector2 = leader.travel_direction
+		if is_instance_valid(_leader):
+			var leader_direction: Vector2 = _leader.travel_direction
 
 			var trailing_position: Vector2 = (
-				leader.global_position
+				_leader.global_position
 				- leader_direction * randf_range(
 					FOLLOW_DISTANCE_MIN,
 					FOLLOW_DISTANCE_MAX
@@ -170,21 +210,32 @@ func _physics_process(delta: float) -> void:
 
 				desired_direction = travel_direction.lerp(
 					toward_trail,
-					minf(delta * 1.5, 0.12)
+					minf(simulation_delta * 1.5, 0.12)
 				).normalized()
 
 			desired_direction = desired_direction.rotated(
 				sin(movement_phase * 2.0 + side_offset)
-				* delta * 0.45
+				* simulation_delta * 0.45
 			)
 
 	travel_direction = desired_direction.normalized()
 
-	move_with_wall_bouncing(delta)
+	move_with_wall_bouncing(simulation_delta)
 
-	update_trail(delta)
-	check_immune_cell_detection()
+	update_trail(simulation_delta)
+	_detection_scan_timer -= simulation_delta
+	if _detection_scan_timer <= 0.0:
+		_detection_scan_timer = DETECTION_SCAN_INTERVAL
+		check_immune_cell_detection()
 	queue_redraw()
+
+
+func _is_valid_immune_target(candidate: Node2D) -> bool:
+	return (
+		is_instance_valid(candidate)
+		and candidate.is_in_group("immune_cells")
+		and candidate.get("defeated") != true
+	)
 
 
 func move_with_wall_bouncing(delta: float) -> void:
@@ -227,12 +278,6 @@ func move_with_wall_bouncing(delta: float) -> void:
 
 		travel_direction = reflected_direction
 
-		var remaining_distance: float = (
-			global_position.distance_to(
-				global_position + remaining_motion
-			)
-		)
-
 		var remaining_fraction: float = clampf(
 			1.0 - global_position.distance_to(hit_position)
 				/ maxf(remaining_motion.length(), 0.001),
@@ -254,7 +299,7 @@ func update_trail(delta: float) -> void:
 	if trail_timer < TRAIL_POINT_INTERVAL:
 		return
 
-	trail_timer = 0.0
+	trail_timer = fmod(trail_timer, TRAIL_POINT_INTERVAL)
 	trail_points.append(global_position)
 
 	while trail_points.size() > MAX_TRAIL_POINTS:
@@ -279,12 +324,17 @@ func check_immune_cell_detection() -> void:
 			continue
 
 		if immune_cell.has_method("receive_chemical_alert"):
+			var immune_id := immune_cell.get_instance_id()
+			if alerted_immune_ids.has(immune_id):
+				continue
+			alerted_immune_ids[immune_id] = true
 			immune_cell.receive_chemical_alert(source_position)
 
-			print(
-				"Chemical particle alerted an immune cell! Distance: ",
-				distance
-			)
+			if OS.is_debug_build():
+				print(
+					"Chemical particle alerted an immune cell! Distance: ",
+					distance
+				)
 
 			queue_free()
 			return

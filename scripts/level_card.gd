@@ -9,6 +9,7 @@ var is_active_selection: bool = false
 
 @onready var number_label: Label = $VBoxContainer/HeaderBox/NumberLabel
 @onready var status_badge: Label = $VBoxContainer/HeaderBox/StatusBadge
+@onready var preview_container: MarginContainer = $VBoxContainer/PreviewContainer
 @onready var preview_rect: Control = $VBoxContainer/PreviewContainer/PreviewDraw
 @onready var title_label: Label = $VBoxContainer/TitleLabel
 @onready var desc_label: Label = $VBoxContainer/DescLabel
@@ -31,6 +32,12 @@ func setup(data: Dictionary) -> void:
 	level_data = data
 	if is_inside_tree():
 		refresh_ui()
+
+
+func set_responsive_size(card_width: float, card_height: float) -> void:
+	custom_minimum_size = Vector2(card_width, card_height)
+	preview_container.custom_minimum_size.x = maxf(120.0, card_width - 32.0)
+	action_button.custom_minimum_size.y = 48.0
 
 
 func refresh_ui() -> void:

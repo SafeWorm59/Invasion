@@ -108,7 +108,7 @@ text = "Human Respiratory & Cellular Immunology"
 horizontal_alignment = 1
 
 [node name="BackButton" type="Button" parent="Margin/VBox"]
-custom_minimum_size = Vector2(200, 44)
+custom_minimum_size = Vector2(200, 48)
 layout_mode = 2
 size_flags_horizontal = 4
 text = "BACK"

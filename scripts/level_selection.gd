@@ -1,9 +1,14 @@
 extends Control
 
+const UISafeArea := preload("res://scripts/ui_safe_area.gd")
+
 var selected_level_id: int = 1
 var card_instances: Array[LevelCard] = []
 
+@onready var main_layout: VBoxContainer = $MainLayout
+@onready var scroll_container: ScrollContainer = $MainLayout/ScrollContainer
 @onready var cards_container: HBoxContainer = $MainLayout/ScrollContainer/CardsHBox
+@onready var footer_box: HBoxContainer = $MainLayout/FooterBox
 @onready var back_button: Button = $MainLayout/FooterBox/BackButton
 @onready var launch_button: Button = $MainLayout/FooterBox/LaunchButton
 @onready var info_title: Label = $MainLayout/DetailPanel/Margin/VBox/DetailTitle
@@ -22,9 +27,46 @@ func _ready() -> void:
 
 	back_button.pressed.connect(_on_back_pressed)
 	launch_button.pressed.connect(_on_launch_pressed)
+	get_viewport().size_changed.connect(_fit_to_viewport)
 
+	_fit_to_viewport()
 	populate_level_cards()
+	_fit_to_viewport()
 	select_level(1)
+
+
+func _fit_to_viewport() -> void:
+	var viewport_size := get_viewport_rect().size
+	var safe_rect := UISafeArea.get_safe_rect(viewport_size)
+	var horizontal_margin := minf(40.0, maxf(16.0, safe_rect.size.x * 0.03))
+	var vertical_margin := minf(24.0, maxf(12.0, safe_rect.size.y * 0.03))
+	main_layout.anchor_left = 0.0
+	main_layout.anchor_top = 0.0
+	main_layout.anchor_right = 1.0
+	main_layout.anchor_bottom = 1.0
+	main_layout.offset_left = safe_rect.position.x + horizontal_margin
+	main_layout.offset_top = safe_rect.position.y + vertical_margin
+	main_layout.offset_right = safe_rect.end.x - viewport_size.x - horizontal_margin
+	main_layout.offset_bottom = safe_rect.end.y - viewport_size.y - vertical_margin
+
+	var footer_spacing := minf(20.0, maxf(8.0, safe_rect.size.x * 0.02))
+	footer_box.add_theme_constant_override("separation", roundi(footer_spacing))
+	var content_width := maxf(280.0, safe_rect.size.x - horizontal_margin * 2.0)
+	var footer_width := maxf(280.0, content_width - footer_spacing)
+	var width_scale := minf(1.0, footer_width / 460.0)
+	back_button.custom_minimum_size = Vector2(maxf(120.0, 200.0 * width_scale), 48.0)
+	launch_button.custom_minimum_size = Vector2(maxf(160.0, footer_width - back_button.custom_minimum_size.x), 48.0)
+	back_button.add_theme_font_size_override("font_size", maxi(13, roundi(16.0 * width_scale)))
+	launch_button.add_theme_font_size_override("font_size", maxi(12, roundi(16.0 * width_scale)))
+
+	var card_gap := minf(16.0, maxf(8.0, safe_rect.size.x * 0.015))
+	cards_container.add_theme_constant_override("separation", roundi(card_gap))
+	var card_width := clampf((content_width - card_gap * 4.0) / 5.0, 170.0, 230.0)
+	var card_height := minf(420.0, maxf(360.0, safe_rect.size.y - 310.0))
+	scroll_container.custom_minimum_size.y = minf(410.0, maxf(240.0, safe_rect.size.y - 310.0))
+	scroll_container.vertical_scroll_mode = 1 if safe_rect.size.y < 720.0 else 0
+	for card in card_instances:
+		card.set_responsive_size(card_width, card_height)
 
 
 func populate_level_cards() -> void:

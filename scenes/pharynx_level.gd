@@ -276,8 +276,4 @@ func _on_exit_body_entered(body: Node2D) -> void:
 
 
 func _show_completion_popup() -> void:
-	var popup := AcceptDialog.new()
-	popup.title = "LEVEL COMPLETED!"
-	popup.dialog_text = "Pharynx cleared - every host cell has been infected."
-	get_tree().root.add_child(popup)
-	popup.popup_centered()
+	GameManager.show_level_completion_dialog(2)

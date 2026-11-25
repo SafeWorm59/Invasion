@@ -4,9 +4,9 @@
 [ext_resource type="Script" path="res://scripts/level_preview_draw.gd" id="2_prev"]
 
 [node name="LevelCard" type="PanelContainer"]
-custom_minimum_size = Vector2(215, 380)
-offset_right = 215.0
-offset_bottom = 380.0
+custom_minimum_size = Vector2(230, 410)
+offset_right = 230.0
+offset_bottom = 410.0
 size_flags_vertical = 3
 mouse_filter = 0
 script = ExtResource("1_card")
@@ -58,7 +58,7 @@ autowrap_mode = 2
 text_overrun_behavior = 3
 
 [node name="ActionButton" type="Button" parent="VBoxContainer"]
-custom_minimum_size = Vector2(0, 38)
+custom_minimum_size = Vector2(0, 48)
 layout_mode = 2
 theme_override_font_sizes/font_size = 14
 text = "INFILTRATE"

@@ -244,11 +244,12 @@ func trigger_alert(intruder_pos: Vector2) -> void:
 	_flash_timer = 0.6
 	velocity = Vector2.ZERO
 
-	# Release the cytokine particle trails (identical to popped host cell)
-	_release_cytokine_alert_trails()
-
 	# Broadcast targeted signal packets to nearby neutrophils and macrophages
-	_broadcast_to_immune_cells(intruder_pos)
+	var alerted_ids := _broadcast_to_immune_cells(intruder_pos)
+
+	# Particles can extend the alert beyond the direct broadcast, but share its
+	# recipient set so a single burst does not alert the same immune cell twice.
+	_release_cytokine_alert_trails(alerted_ids)
 
 	queue_redraw()
 	print("[DendriticCell] Player near sentinel! Released %d alert trails at %s" % [CYTOKINE_PARTICLE_COUNT, str(global_position)])
@@ -256,7 +257,7 @@ func trigger_alert(intruder_pos: Vector2) -> void:
 
 ## Releases the full burst of 24 cytokine signaling particles with glowing trails
 ## identical to the effect when an infected cell pops.
-func _release_cytokine_alert_trails() -> void:
+func _release_cytokine_alert_trails(alerted_ids: Dictionary) -> void:
 	var main_scene := get_tree().current_scene
 	if main_scene == null:
 		return
@@ -264,15 +265,16 @@ func _release_cytokine_alert_trails() -> void:
 	for i in range(CYTOKINE_PARTICLE_COUNT):
 		var particle := CYTOKINE_PARTICLE_SCRIPT.new() as Node2D
 		main_scene.add_child(particle)
-		particle.setup(global_position)
+		particle.setup(global_position, alerted_ids)
 		var angle := TAU * float(i) / float(CYTOKINE_PARTICLE_COUNT) + randf_range(-0.15, 0.15)
 		particle.set("travel_direction", Vector2(cos(angle), sin(angle)))
 
 
 ## Sends glowing golden packets to every neutrophil and macrophage inside the
 ## notification radius and wakes them onto the intruder's position.
-func _broadcast_to_immune_cells(intruder_pos: Vector2) -> void:
+func _broadcast_to_immune_cells(intruder_pos: Vector2) -> Dictionary:
 	var recipients: Array[Node2D] = []
+	var alerted_ids: Dictionary = {}
 
 	for group in ["neutrophils", "macrophages"]:
 		for node in get_tree().get_nodes_in_group(group):
@@ -291,8 +293,12 @@ func _broadcast_to_immune_cells(intruder_pos: Vector2) -> void:
 
 		if cell.has_method("receive_chemical_alert"):
 			cell.receive_chemical_alert(intruder_pos, false)
+			alerted_ids[cell.get_instance_id()] = true
 		elif cell.has_method("receive_dendritic_alert"):
 			cell.receive_dendritic_alert(intruder_pos)
+			alerted_ids[cell.get_instance_id()] = true
+
+	return alerted_ids
 
 
 func take_damage(amount: int) -> void:

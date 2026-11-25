@@ -14,6 +14,8 @@ const CYTOKINE_PARTICLE_SCRIPT = preload(
 )
 
 const DEATH_CYTOKINE_PARTICLE_COUNT: int = 24
+const MINION_TARGET_SCAN_INTERVAL: float = 0.25
+const RESTRAINT_SCAN_INTERVAL: float = 0.25
 
 @export var patrol_speed: float = 30.0
 @export var guard_range: float = 300.0
@@ -81,6 +83,9 @@ var death_timer: float = 0.0
 var has_taken_damage: bool = false
 var health_bar_width: float = 64.0
 var health_bar_height: float = 7.0
+var _minion_target_scan_timer: float = 0.0
+var _cached_minion_target: Node2D = null
+var _restraint_scan_timer: float = 0.0
 
 # --- Amoeba membrane animation -------------------------------------------
 # The outline is rebuilt from sine harmonics + lobes + pseudopods.
@@ -164,7 +169,11 @@ func _physics_process(delta: float) -> void:
 	if not is_instance_valid(player):
 		player = get_tree().get_first_node_in_group("player") as Node2D
 
-	update_restraint()
+	_restraint_scan_timer -= delta
+	_minion_target_scan_timer -= delta
+	if _restraint_scan_timer <= 0.0:
+		_restraint_scan_timer = RESTRAINT_SCAN_INTERVAL
+		update_restraint()
 	update_player_assistance()
 
 	target = find_nearest_target()
@@ -305,6 +314,13 @@ func update_restraint() -> void:
 
 		if minion.get("dying") == true:
 			continue
+		if (
+			minion.get("being_engulfed") == true
+			or minion.get("dissolved") == true
+		):
+			continue
+		if minion.get("capture_target") != self:
+			continue
 
 		var distance: float = global_position.distance_to(
 			minion.global_position
@@ -393,7 +409,8 @@ func take_damage(amount: int) -> void:
 	has_taken_damage = true
 	health = max(health - amount, 0)
 
-	print("Macrophage health: %d / %d" % [health, max_health])
+	if OS.is_debug_build():
+		print("Macrophage health: %d / %d" % [health, max_health])
 	queue_redraw()
 
 	if health <= 0:
@@ -411,7 +428,8 @@ func take_damage(amount: int) -> void:
 
 		remove_from_group("immune_cells")
 
-	print("Macrophage defeated!")
+		if OS.is_debug_build():
+			print("Macrophage defeated!")
 
 
 func find_nearest_target() -> Node2D:
@@ -427,6 +445,31 @@ func find_nearest_target() -> Node2D:
 			nearest_distance = distance
 			nearest = player
 
+	if (
+		_minion_target_scan_timer <= 0.0
+		or (
+			is_instance_valid(_cached_minion_target)
+			and not _is_valid_minion_target(_cached_minion_target)
+		)
+	):
+		_cached_minion_target = _find_nearest_minion()
+		_minion_target_scan_timer = MINION_TARGET_SCAN_INTERVAL
+
+	if _is_valid_minion_target(_cached_minion_target):
+		var minion_distance: float = global_position.distance_to(
+			_cached_minion_target.global_position
+		)
+		if minion_distance < nearest_distance:
+			nearest_distance = minion_distance
+			nearest = _cached_minion_target
+
+	return nearest
+
+
+func _find_nearest_minion() -> Node2D:
+	var nearest: Node2D = null
+	var nearest_distance: float = detection_range
+
 	for node in get_tree().get_nodes_in_group("minions"):
 		if not is_instance_valid(node) or not node is Node2D:
 			continue
@@ -436,15 +479,21 @@ func find_nearest_target() -> Node2D:
 		if minion.get("dying") == true:
 			continue
 
-		var distance: float = global_position.distance_to(
-			minion.global_position
-		)
+		var distance: float = global_position.distance_to(minion.global_position)
 
 		if distance < nearest_distance:
 			nearest_distance = distance
 			nearest = minion
 
 	return nearest
+
+
+func _is_valid_minion_target(candidate: Node2D) -> bool:
+	return (
+		is_instance_valid(candidate)
+		and candidate.is_in_group("minions")
+		and candidate.get("dying") != true
+	)
 
 
 func start_attack(cooldown: float = -1.0) -> void:
@@ -541,7 +590,19 @@ func _consume_target(node: Node2D) -> void:
 	state = State.ENGULF
 	queue_redraw()
 
-	print("Macrophage engulfed a target instantly!")
+	if node.is_in_group("minions") and OS.is_debug_build():
+		var capture_target := node.get("capture_target") as Node2D
+		var capture_target_name: String = (
+			String(capture_target.name)
+			if is_instance_valid(capture_target)
+			else "none"
+		)
+		print(
+			"[Combat] %s engulfed minion %s (capture target: %s)."
+			% [name, node.name, capture_target_name]
+		)
+	else:
+		print("Macrophage engulfed a target instantly!")
 
 
 func notify_minions_of_player_attack() -> void:

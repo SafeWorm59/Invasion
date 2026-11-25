@@ -20,7 +20,8 @@ extends RefCounted
 const PLAYER_SPEED := 200.0
 
 ## [name, center_x, center_y, radius_x, radius_y, region]
-## region: 0 = Upper trachea, 1 = Mid trachea, 2 = Lower trachea, 3 = Carina
+## region: 0 = Upper trachea, 1 = Mid trachea, 2 = Lower trachea, 3 = Carina,
+## 4 = Distal bronchioles
 const CHAMBERS := [
 	## Upper trachea.
 	["TracheaRing01", 0.0, -3300.0, 350.0, 430.0, 0],
@@ -44,13 +45,24 @@ const CHAMBERS := [
 	["Carina", 0.0, 2680.0, 520.0, 340.0, 3],
 	["LeftMainBronchus", -420.0, 3120.0, 270.0, 300.0, 3],
 	["RightMainBronchus", 420.0, 3120.0, 270.0, 300.0, 3],
+
+	## Distal side chambers branching from the extended main bronchi.
+	["LeftBronchiolePocketA", -760.0, 3500.0, 175.0, 150.0, 4],
+	["LeftBronchiolePocketB", -1040.0, 3740.0, 165.0, 145.0, 4],
+	["RightBronchiolePocketA", 760.0, 3500.0, 175.0, 150.0, 4],
+	["RightBronchiolePocketB", 1040.0, 3740.0, 165.0, 145.0, 4],
 ]
 
 ## [start_x, start_y, end_x, end_y, half_width, region]
 const CORRIDORS := [
-	## The two main bronchi open out of the carina.
-	[0.0, 2380.0, -360.0, 3040.0, 240.0, 3],
-	[0.0, 2380.0, 360.0, 3040.0, 240.0, 3],
+	## The two main bronchi open out of the carina and continue into the lungs.
+	[0.0, 2380.0, -540.0, 3420.0, 240.0, 3],
+	[0.0, 2380.0, 540.0, 3420.0, 240.0, 3],
+	## Two connected distal pockets branch from each extended main bronchus.
+	[-540.0, 3420.0, -760.0, 3500.0, 130.0, 4],
+	[-760.0, 3500.0, -1040.0, 3740.0, 120.0, 4],
+	[540.0, 3420.0, 760.0, 3500.0, 130.0, 4],
+	[760.0, 3500.0, 1040.0, 3740.0, 120.0, 4],
 ]
 
 ## Main route: straight down the tracheal lumen into the carina, with a gentle
@@ -74,7 +86,7 @@ const ROUTE := [
 	Vector2(0.0, 2900.0),
 ]
 
-const REGION_NAMES := ["Upper trachea", "Mid trachea", "Lower trachea", "Carina"]
+const REGION_NAMES := ["Upper trachea", "Mid trachea", "Lower trachea", "Carina", "Distal bronchioles"]
 
 ## The posterior membranous wall occupies this fraction of the lumen width on
 ## the +x side. The C-shaped cartilage rings stop here and leave the gap that

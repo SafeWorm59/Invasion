@@ -1,8 +1,11 @@
 extends Node2D
 
+const RESTRAINT_SCAN_INTERVAL: float = 0.25
+
 var total_neutrophils: int = 0
 var defeated_neutrophils: int = 0
 var hud: Node = null
+var _counted_neutrophil_ids: Dictionary = {}
 
 @onready var level_exit: Area2D = $LevelExit
 
@@ -12,7 +15,10 @@ func _ready() -> void:
 
 	level_exit.set_exit_locked(true)
 
-	var neutrophils := get_tree().get_nodes_in_group("immune_cells")
+	var neutrophils: Array[Node] = []
+	for neutrophil in get_tree().get_nodes_in_group("neutrophils"):
+		if is_instance_valid(neutrophil) and neutrophil.has_signal("defeated_signal"):
+			neutrophils.append(neutrophil)
 
 	total_neutrophils = neutrophils.size()
 	
@@ -22,24 +28,37 @@ func _ready() -> void:
 
 	print("Level objective: Defeat ", total_neutrophils, " Neutrophils.")
 
-	for neuron in neutrophils:
-		if neuron.has_signal("defeated_signal"):
-			neuron.defeated_signal.connect(_on_neutrophil_defeated)
+	for neutrophil in neutrophils:
+		if neutrophil.has_method("set_restraint_scan_interval"):
+			neutrophil.set_restraint_scan_interval(RESTRAINT_SCAN_INTERVAL)
 
-	if total_neutrophils == 0:
-		unlock_exit()
+		var defeated_callback := Callable(
+			self,
+			"_on_neutrophil_defeated"
+		).bind(neutrophil)
+		if not neutrophil.defeated_signal.is_connected(defeated_callback):
+			neutrophil.defeated_signal.connect(defeated_callback)
 
 
-func _on_neutrophil_defeated() -> void:
-	defeated_neutrophils += 1
+func _on_neutrophil_defeated(neutrophil: Node) -> void:
+	if not is_instance_valid(neutrophil) or neutrophil.get("defeated") != true:
+		return
+
+	var neutrophil_id := neutrophil.get_instance_id()
+	if _counted_neutrophil_ids.has(neutrophil_id):
+		return
+
+	_counted_neutrophil_ids[neutrophil_id] = true
+	defeated_neutrophils = _counted_neutrophil_ids.size()
 	update_objective_display()
 
-	print(
-        "Neutrophils defeated: %d / %d"
-	% [defeated_neutrophils, total_neutrophils]
-)
+	if OS.is_debug_build():
+		print(
+			"[Objective] Confirmed %s defeat: %d/%d."
+			% [neutrophil.name, defeated_neutrophils, total_neutrophils]
+		)
 
-	if defeated_neutrophils >= total_neutrophils:
+	if total_neutrophils > 0 and defeated_neutrophils == total_neutrophils:
 		unlock_exit()
 
 
@@ -107,11 +126,6 @@ const SAVE_CONFIRMATION_SCENE: String = "res://scenes/save_confirmation.tscn"
 
 static var _dialog_instance: Control = null
 static var _is_showing: bool = false
-
-func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_cancel"):
-		if not _is_showing:
-			open_save_confirmation()
 
 func open_save_confirmation() -> void:
 	if _is_showing or _dialog_instance != null:

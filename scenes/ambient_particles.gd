@@ -5,7 +5,10 @@ extends Node2D
 @export var level_bounds: Rect2 = Rect2(-1700, -3150, 3500, 4650)
 @export var drift_speed: float = 9.0
 
+const UPDATE_INTERVAL: float = 1.0 / 30.0
+
 var particles: Array[Dictionary] = []
+var _update_accumulator: float = 0.0
 
 
 func _ready() -> void:
@@ -104,10 +107,17 @@ func _add_particle(pos: Vector2) -> void:
 
 
 func _process(delta: float) -> void:
+	_update_accumulator += delta
+	if _update_accumulator < UPDATE_INTERVAL:
+		return
+
+	var simulation_delta: float = _update_accumulator
+	_update_accumulator = 0.0
+
 	for particle in particles:
-		particle.time += delta * particle.sway_speed
-		particle.position.y -= particle.speed_y * delta
-		particle.position.x += cos(particle.time + particle.phase) * particle.sway_amplitude * delta
+		particle.time += simulation_delta * particle.sway_speed
+		particle.position.y -= particle.speed_y * simulation_delta
+		particle.position.x += cos(particle.time + particle.phase) * particle.sway_amplitude * simulation_delta
 
 		# Soft wrap within its world zone so particles stay distributed in place
 		if particle.position.y < particle.origin.y - particle.vertical_range:

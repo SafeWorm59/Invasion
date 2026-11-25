@@ -25,6 +25,7 @@ var transition_end_position: Vector2 = Vector2.ZERO
 
 var inside_cell: bool = false
 var host_cell: Node2D = null
+var _exit_after_entry_cell: Node2D = null
 
 var is_dead: bool = false
 var death_timer: float = 0.0
@@ -36,6 +37,9 @@ var team_attack_timer: float = 0.0
 var team_attack_animation_timer: float = 0.0
 var is_team_attacking: bool = false
 var team_attack_direction: Vector2 = Vector2.RIGHT
+var _assisted_target_scan_timer: float = 0.0
+var _assisted_target_cache: Node2D = null
+var network_movement_input: Vector2 = Vector2.ZERO
 
 const TEAM_ATTACK_INTERVAL: float = 0.7
 const TEAM_ATTACK_ANIMATION_DURATION: float = 0.25
@@ -45,10 +49,40 @@ const TEAM_ATTACK_LUNGE_DISTANCE: float = 12.0
 var hud: Node = null
 
 
+func _enter_tree() -> void:
+	if not MultiplayerSession.is_session_active:
+		return
+
+	var authority_id := multiplayer.get_unique_id()
+	if has_meta("network_peer_id"):
+		authority_id = int(get_meta("network_peer_id"))
+	set_multiplayer_authority(authority_id, true)
+
+
 func _ready() -> void:
+	if MultiplayerSession.is_session_active:
+		var camera := get_node_or_null("Camera2D") as Camera2D
+		var is_local_player := is_multiplayer_authority()
+		if camera != null:
+			camera.enabled = is_local_player
+		if not is_local_player:
+			set_process(false)
+			set_physics_process(false)
+			return
+
 	add_to_group("player")
 	find_hud()
 	update_health_label()
+	if MultiplayerSession.is_session_active:
+		call_deferred("_register_multiplayer_player")
+
+
+func _register_multiplayer_player() -> void:
+	if (
+		MultiplayerSession.is_session_active
+		and is_multiplayer_authority()
+	):
+		MultiplayerSession.register_local_player(self)
 
 
 func _process(delta: float) -> void:
@@ -105,28 +139,25 @@ func _process(delta: float) -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if MultiplayerSession.is_session_active and not is_multiplayer_authority():
+		return
+
 	if is_dead:
+		network_movement_input = Vector2.ZERO
 		velocity = Vector2.ZERO
 		return
 
 	if inside_cell:
+		network_movement_input = Vector2.ZERO
 		velocity = Vector2.ZERO
 
 		if Input.is_action_just_pressed("interact"):
-			if is_instance_valid(host_cell):
-				var exit_position: Vector2 = get_cell_exit_position(
-					host_cell
-				)
-
-				start_cell_transition(
-					"exit",
-					global_position,
-					exit_position
-				)
+			perform_context_interaction()
 
 		return
 
 	if is_transitioning:
+		network_movement_input = Vector2.ZERO
 		velocity = Vector2.ZERO
 		return
 
@@ -137,7 +168,7 @@ func _physics_process(delta: float) -> void:
 		"ui_down"
 	)
 
-	team_attack_target = find_player_assisted_target()
+	team_attack_target = find_player_assisted_target(delta)
 
 	if is_instance_valid(team_attack_target):
 		if direction.length() > 0.1:
@@ -164,45 +195,68 @@ func _physics_process(delta: float) -> void:
 		is_team_attacking = false
 		team_attack_timer = 0.0
 
+	network_movement_input = (velocity / SPEED).limit_length(1.0)
 	move_and_slide()
 
 	if Input.is_action_just_pressed("interact"):
-		var cells = get_tree().get_nodes_in_group("host_cells")
+		perform_context_interaction()
 
-		for cell in cells:
-			if cell.has_method("try_enter") and cell.try_enter(self):
-				inside_cell = true
-				host_cell = cell
 
-				start_cell_transition(
-					"enter",
-					global_position,
-					cell.global_position
-				)
+func perform_context_interaction() -> void:
+	if is_dead or is_transitioning:
+		return
 
-				if cell.has_signal("replication_completed"):
-					var callback := Callable(
-						self,
-						"_on_host_cell_replication_completed"
-					)
+	if inside_cell:
+		if is_instance_valid(host_cell):
+			var exit_position: Vector2 = get_cell_exit_position(host_cell)
+			start_cell_transition("exit", global_position, exit_position)
+		return
 
-					if not cell.is_connected(
-						"replication_completed",
-						callback
-					):
-						cell.connect(
-							"replication_completed",
-							callback
-						)
+	for node in get_tree().get_nodes_in_group("host_cells"):
+		if (
+			not is_instance_valid(node)
+			or not node.has_method("can_player_enter")
+			or not node.has_method("try_enter")
+		):
+			continue
 
-				break
+		var cell := node as Node2D
+		if not cell.can_player_enter(self) or not cell.try_enter(self):
+			continue
+
+		inside_cell = true
+		host_cell = cell
+		start_cell_transition("enter", global_position, cell.global_position)
+
+		if cell.has_signal("replication_completed"):
+			var callback := Callable(self, "_on_host_cell_replication_completed")
+			if not cell.is_connected("replication_completed", callback):
+				cell.connect("replication_completed", callback)
+		return
+
+	if is_instance_valid(hud) and hud.has_method("perform_join_attack"):
+		hud.perform_join_attack(self)
 
 
 func find_hud() -> void:
 	hud = get_tree().get_first_node_in_group("hud")
 
 
-func find_player_assisted_target() -> Node2D:
+func find_player_assisted_target(delta: float) -> Node2D:
+	if (
+		is_instance_valid(_assisted_target_cache)
+		and _assisted_target_cache.get("player_assisting") == true
+		and _assisted_target_cache.has_method("is_restrained")
+		and _assisted_target_cache.is_restrained()
+	):
+		return _assisted_target_cache
+
+	_assisted_target_cache = null
+	_assisted_target_scan_timer -= delta
+	if _assisted_target_scan_timer > 0.0:
+		return null
+	_assisted_target_scan_timer = 0.1
+
 	for node in get_tree().get_nodes_in_group("immune_cells"):
 		if not is_instance_valid(node):
 			continue
@@ -211,7 +265,8 @@ func find_player_assisted_target() -> Node2D:
 			continue
 
 		if node.has_method("is_restrained") and node.is_restrained():
-			return node as Node2D
+			_assisted_target_cache = node as Node2D
+			return _assisted_target_cache
 
 	return null
 
@@ -235,7 +290,8 @@ func update_team_attack(delta: float) -> void:
 
 		if team_attack_target.has_method("take_damage"):
 			team_attack_target.take_damage(TEAM_ATTACK_DAMAGE)
-			print("Player attacks alongside the viral minions!")
+			if OS.is_debug_build():
+				print("Player attacks alongside the viral minions!")
 
 		queue_redraw()
 
@@ -387,8 +443,12 @@ func update_health_label() -> void:
 
 
 func take_damage(amount: int) -> void:
-	if amount <= 0 or is_dead:
+	# The virus is protected for the full host-cell visit, including the fade
+	# transitions where it may still be visible to enemy targeting code.
+	if amount <= 0 or is_dead or inside_cell:
 		return
+
+	print("[PLAYER DAMAGE] Received: ", amount, " HP")
 
 	health = max(health - amount, 0)
 	update_health_label()
@@ -491,6 +551,20 @@ func _on_host_cell_replication_completed(cell: Node2D) -> void:
 	print("Replication complete! Virus is emerging!")
 
 
+## Lets a level that completes its infection objective on entry leave the final
+## host without waiting for that cell's replication timer.
+func request_exit_after_entry(cell: Node2D) -> void:
+	if not is_instance_valid(cell):
+		return
+	if inside_cell and host_cell == cell:
+		if is_transitioning and transition_type == "enter":
+			_exit_after_entry_cell = cell
+		else:
+			force_eject(cell)
+		return
+	_exit_after_entry_cell = cell
+
+
 ## Called by a host cell that an NKT cell has just destroyed. The virus is
 ## pushed out of the dying cell instead of being trapped inside a freed node.
 func force_eject(cell: Node2D) -> void:
@@ -537,6 +611,15 @@ func finish_cell_transition() -> void:
 
 	if transition_type == "enter":
 		visible = false
+		if is_instance_valid(_exit_after_entry_cell) and host_cell == _exit_after_entry_cell:
+			var cell_to_exit := host_cell
+			_exit_after_entry_cell = null
+			start_cell_transition(
+				"exit",
+				global_position,
+				get_cell_exit_position(cell_to_exit)
+			)
+			return
 	else:
 		visible = true
 		inside_cell = false

@@ -7,6 +7,11 @@ enum CommandMode {
 	DEFEND
 }
 
+const ENEMY_GROUPS: Array[String] = ["immune_cells", "nkt_cells"]
+const DEFEND_ALERT_RADIUS: float = 220.0
+const CAPTURE_SLOT_SCAN_INTERVAL: float = 0.25
+const DEFEND_TARGET_SCAN_INTERVAL: float = 0.2
+
 @export var minion_radius: float = 10.0
 @export var minion_color: Color = Color("#ff6655")
 @export var follow_speed: float = 115.0
@@ -31,6 +36,7 @@ var formation_offset: Vector2 = Vector2.ZERO
 
 var command_mode: CommandMode = CommandMode.FOLLOW
 var defend_position: Vector2 = Vector2.ZERO
+var _defend_order_active: bool = false
 
 var capture_attack_timer: float = 0.0
 
@@ -39,6 +45,10 @@ var is_attacking: bool = false
 var attack_direction: Vector2 = Vector2.RIGHT
 
 var temporary_defense: bool = false
+var _capture_slot_refresh_timer: float = 0.0
+var _capture_slot_index: int = 0
+var _defend_scan_timer: float = 0.0
+var _cached_defend_target: Node2D = null
 
 var dying: bool = false
 var being_engulfed: bool = false
@@ -80,13 +90,17 @@ func set_command(
 
 	temporary_defense = false
 	command_mode = new_command
+	_defend_order_active = command_mode == CommandMode.DEFEND
+	_capture_slot_refresh_timer = 0.0
+	_defend_scan_timer = 0.0
+	_cached_defend_target = null
 
 	if command_mode == CommandMode.CAPTURE:
-		capture_target = find_nearest_immune_cell()
+		capture_target = find_nearest_enemy(global_position)
 		capture_attack_timer = 0.0
 		is_attacking = false
 		attack_animation_timer = 0.0
-		print("Minion seeking an immune cell.")
+		print("Minion seeking an enemy.")
 
 	elif command_mode == CommandMode.FOLLOW:
 		capture_target = null
@@ -113,8 +127,11 @@ func set_capture_target(target_node: Node2D) -> void:
 		return
 
 	temporary_defense = false
+	_defend_order_active = false
 	command_mode = CommandMode.CAPTURE
 	capture_target = target_node
+	_capture_slot_refresh_timer = 0.0
+	_cached_defend_target = null
 	capture_attack_timer = 0.0
 	is_attacking = false
 	attack_animation_timer = 0.0
@@ -136,6 +153,8 @@ func respond_to_player_attack(attacking_enemy: Node2D) -> void:
 	temporary_defense = true
 	command_mode = CommandMode.CAPTURE
 	capture_target = attacking_enemy
+	_capture_slot_refresh_timer = 0.0
+	_cached_defend_target = null
 	capture_attack_timer = 0.0
 	is_attacking = false
 	attack_animation_timer = 0.0
@@ -143,25 +162,24 @@ func respond_to_player_attack(attacking_enemy: Node2D) -> void:
 	print("Minion responding to an attack on the player!")
 
 
-func find_nearest_immune_cell() -> Node2D:
+func find_nearest_enemy(origin: Vector2, max_distance: float = INF) -> Node2D:
 	var nearest: Node2D = null
-	var nearest_distance: float = INF
+	var nearest_distance: float = max_distance
 
-	for node in get_tree().get_nodes_in_group("immune_cells"):
-		if not is_instance_valid(node) or not node is Node2D:
-			continue
+	for group_name in ENEMY_GROUPS:
+		for node in get_tree().get_nodes_in_group(group_name):
+			if not is_instance_valid(node) or not node is Node2D:
+				continue
 
-		if node.get("defeated") == true:
-			continue
+			if node.get("defeated") == true or not node.has_method("take_damage"):
+				continue
 
-		var immune_cell := node as Node2D
-		var distance := global_position.distance_to(
-			immune_cell.global_position
-		)
+			var enemy := node as Node2D
+			var distance := origin.distance_to(enemy.global_position)
 
-		if distance < nearest_distance:
-			nearest_distance = distance
-			nearest = immune_cell
+			if distance < nearest_distance:
+				nearest_distance = distance
+				nearest = enemy
 
 	return nearest
 
@@ -199,13 +217,23 @@ func _physics_process(delta: float) -> void:
 		velocity = Vector2.ZERO
 		return
 
+	if _defend_order_active and player.visible:
+		defend_position = player.global_position
+
 	# A defeated target ends the capture or temporary defense.
 	if command_mode == CommandMode.CAPTURE:
 		if not is_instance_valid(capture_target):
-			return_to_follow()
+			_return_from_capture_target()
 
 		elif capture_target.get("defeated") == true:
-			return_to_follow()
+			_return_from_capture_target()
+		elif (
+			temporary_defense
+			and _defend_order_active
+			and capture_target.global_position.distance_to(defend_position)
+				> DEFEND_ALERT_RADIUS
+		):
+			_return_from_capture_target()
 
 	match command_mode:
 		CommandMode.FOLLOW:
@@ -215,20 +243,28 @@ func _physics_process(delta: float) -> void:
 			capture_behavior(delta)
 
 		CommandMode.DEFEND:
-			defend_position_behavior()
+			defend_position_behavior(delta)
 
 	move_and_slide()
 
 
-func return_to_follow() -> void:
+func _return_from_capture_target() -> void:
 	capture_target = null
-	command_mode = CommandMode.FOLLOW
+	command_mode = (
+		CommandMode.DEFEND
+		if _defend_order_active
+		else CommandMode.FOLLOW
+	)
 	temporary_defense = false
 	is_attacking = false
 	attack_animation_timer = 0.0
 	capture_attack_timer = 0.0
+	_capture_slot_refresh_timer = 0.0
+	_defend_scan_timer = 0.0
+	_cached_defend_target = null
 
-	print("Minion returning to the player.")
+	if command_mode == CommandMode.FOLLOW:
+		print("Minion returning to the player.")
 
 
 func follow_player() -> void:
@@ -244,13 +280,18 @@ func capture_behavior(delta: float) -> void:
 		velocity = Vector2.ZERO
 		return
 
+	_capture_slot_refresh_timer -= delta
+	if _capture_slot_refresh_timer <= 0.0:
+		_refresh_capture_slot_index()
+		_capture_slot_refresh_timer = CAPTURE_SLOT_SCAN_INTERVAL
+
 	var slot_position: Vector2 = get_capture_slot_position()
 	move_toward_position(slot_position, 5.0)
 
-	if not capture_target.has_method("is_restrained"):
-		return
-
-	if not capture_target.is_restrained():
+	if (
+		capture_target.has_method("is_restrained")
+		and not capture_target.is_restrained()
+	):
 		return
 
 	capture_attack_timer -= delta
@@ -274,47 +315,36 @@ func capture_behavior(delta: float) -> void:
 		queue_redraw()
 
 		if capture_target.has_method("take_damage"):
+			var previous_health := int(capture_target.get("health"))
 			capture_target.take_damage(capture_attack_damage)
-			print("Viral minion attacks restrained neutrophil!")
+			if (
+				OS.is_debug_build()
+				and is_instance_valid(capture_target)
+				and capture_target.is_in_group("neutrophils")
+			):
+				var current_health := int(capture_target.get("health"))
+				if current_health < previous_health:
+					print(
+						"[Combat] %s hit %s for %d; HP %d/%d."
+						% [
+							name,
+							capture_target.name,
+							previous_health - current_health,
+							current_health,
+							int(capture_target.get("max_health")),
+						]
+					)
 
 
 # Staggered positions instead of a circular formation.
 func get_capture_slot_position() -> Vector2:
-	var squad: Array[Node2D] = []
-
-	for node in get_tree().get_nodes_in_group("minions"):
-		if not is_instance_valid(node) or not node is Node2D:
-			continue
-
-		var minion := node as Node2D
-
-		if minion.get("dying") == true:
-			continue
-
-		if minion.get("being_engulfed") == true:
-			continue
-
-		if minion.get("command_mode") != CommandMode.CAPTURE:
-			continue
-
-		if minion.get("capture_target") != capture_target:
-			continue
-
-		squad.append(minion)
-
-	var slot_index: int = squad.find(self)
-
-	if slot_index < 0:
-		slot_index = 0
-
-	var row: int = slot_index / 3
-	var column: int = slot_index % 3
+	var row: int = _capture_slot_index / 3
+	var column: int = _capture_slot_index % 3
 
 	var horizontal_offset: float = (
 		float(column - 1) * attack_slot_spacing
 	)
 
-	# Each row is staggered slightly.
 	if row % 2 == 1:
 		horizontal_offset += attack_slot_spacing * 0.5
 
@@ -338,12 +368,79 @@ func get_capture_slot_position() -> Vector2:
 	)
 
 
-func defend_position_behavior() -> void:
+func _refresh_capture_slot_index() -> void:
+	var squad: Array[Node2D] = []
+
+	for node in get_tree().get_nodes_in_group("minions"):
+		if not is_instance_valid(node) or not node is Node2D:
+			continue
+
+		var minion := node as Node2D
+
+		if minion.get("dying") == true:
+			continue
+
+		if minion.get("being_engulfed") == true:
+			continue
+
+		if minion.get("command_mode") != CommandMode.CAPTURE:
+			continue
+
+		if minion.get("capture_target") != capture_target:
+			continue
+
+		squad.append(minion)
+
+	var slot_index: int = squad.find(self)
+	_capture_slot_index = maxi(slot_index, 0)
+
+
+func defend_position_behavior(delta: float) -> void:
+	_defend_scan_timer -= delta
+	if (
+		_defend_scan_timer <= 0.0
+		or (
+			is_instance_valid(_cached_defend_target)
+			and not _is_valid_defend_target(_cached_defend_target)
+		)
+	):
+		_cached_defend_target = find_nearest_enemy(
+			defend_position,
+			DEFEND_ALERT_RADIUS
+		)
+		_defend_scan_timer = DEFEND_TARGET_SCAN_INTERVAL
+
+	var threat := _cached_defend_target
+	if is_instance_valid(threat):
+		var target_changed: bool = (
+			command_mode != CommandMode.CAPTURE
+			or capture_target != threat
+		)
+		capture_target = threat
+		temporary_defense = true
+		command_mode = CommandMode.CAPTURE
+		if target_changed:
+			_capture_slot_refresh_timer = 0.0
+			capture_attack_timer = 0.0
+			is_attacking = false
+		capture_behavior(delta)
+		return
+
 	var target_position: Vector2 = (
 		defend_position + formation_offset
 	)
 
 	move_toward_position(target_position, 8.0)
+
+
+func _is_valid_defend_target(candidate: Node2D) -> bool:
+	return (
+		is_instance_valid(candidate)
+		and candidate.get("defeated") != true
+		and candidate.has_method("take_damage")
+		and defend_position.distance_squared_to(candidate.global_position)
+			<= DEFEND_ALERT_RADIUS * DEFEND_ALERT_RADIUS
+	)
 
 
 func move_toward_position(
@@ -369,7 +466,8 @@ func take_damage(amount: int) -> void:
 		return
 
 	health = max(health - amount, 0)
-	print("Minion health: %d / %d" % [health, max_health])
+	if OS.is_debug_build():
+		print("Minion health: %d / %d" % [health, max_health])
 
 	if health <= 0:
 		start_death_animation()
@@ -396,7 +494,8 @@ func start_death_animation() -> void:
 		fragment_distances.append(randf_range(12.0, 30.0))
 
 	death_timer = 0.0
-	print("Viral minion popped and eliminated!")
+	if OS.is_debug_build():
+		print("Viral minion popped and eliminated!")
 	queue_redraw()
 
 

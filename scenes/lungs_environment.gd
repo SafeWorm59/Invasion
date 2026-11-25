@@ -136,11 +136,6 @@ func _capsule(a: Vector2, b: Vector2, width: float) -> PackedVector2Array:
 	return points
 
 
-func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_cancel") and not _is_showing:
-		open_save_confirmation()
-
-
 func open_save_confirmation() -> void:
 	if _is_showing or _dialog_instance != null:
 		return

@@ -76,9 +76,10 @@ var has_taken_damage: bool = false
 var health_bar_width: float = 54.0
 var health_bar_height: float = 7.0
 
-# Throttle minion group scans - only search every ~2 s to avoid
-# get_nodes_in_group() every physics frame.
+# Keep target selection on its existing two-second scan cadence.
 var _minion_scan_timer: float = 2.0
+var _restraint_scan_timer: float = 0.0
+var _restraint_scan_interval: float = 2.0
 
 
 func _ready() -> void:
@@ -92,6 +93,11 @@ func _ready() -> void:
 	choose_next_patrol_target()
 
 	queue_redraw()
+
+
+func set_restraint_scan_interval(interval: float) -> void:
+	_restraint_scan_interval = maxf(interval, 0.05)
+	_restraint_scan_timer = 0.0
 
 
 func _physics_process(delta: float) -> void:
@@ -116,13 +122,14 @@ func _physics_process(delta: float) -> void:
 	if not is_instance_valid(player):
 		player = get_tree().get_first_node_in_group("player") as Node2D
 
-	# Throttled minion group scan - only re-scan every ~2 s.
+	# Keep restraint checks responsive without changing target-scan cadence.
 	_minion_scan_timer -= delta
-	if _minion_scan_timer > 0.0:
-		# Still use last-known target; don't rescan yet.
-		pass
-	else:
+	if _minion_scan_timer <= 0.0:
 		_minion_scan_timer = 2.0
+
+	_restraint_scan_timer -= delta
+	if _restraint_scan_timer <= 0.0:
+		_restraint_scan_timer = _restraint_scan_interval
 		update_restraint()
 
 	target = find_nearest_target()
@@ -248,6 +255,13 @@ func update_restraint() -> void:
 
 		if minion.get("dying") == true:
 			continue
+		if (
+			minion.get("being_engulfed") == true
+			or minion.get("dissolved") == true
+		):
+			continue
+		if minion.get("capture_target") != self:
+			continue
 
 		var distance: float = global_position.distance_to(
 			minion.global_position
@@ -261,10 +275,15 @@ func update_restraint() -> void:
 	restrained = nearby_minions >= required_minions
 
 	if restrained and not was_restrained:
-		print("Neutrophil restrained! Minions holding: ", nearby_minions)
+		if OS.is_debug_build():
+			print(
+				"[Combat] %s restrained by %d targeted minions."
+				% [name, nearby_minions]
+			)
 		queue_redraw()
 	elif was_restrained and not restrained:
-		print("Neutrophil broke free!")
+		if OS.is_debug_build():
+			print("[Combat] %s no longer restrained." % name)
 		queue_redraw()
 
 	if not restrained:
@@ -338,13 +357,16 @@ func take_damage(amount: int) -> void:
 	has_taken_damage = true
 	health = max(health - amount, 0)
 
-	print("Neutrophil health: %d / %d" % [health, max_health])
+	if OS.is_debug_build():
+		print("[Combat] %s HP: %d/%d (-%d)." % [name, health, max_health, amount])
 	queue_redraw()
 
 	if health <= 0:
 		var death_position: Vector2 = global_position
 
 		defeated = true
+		if OS.is_debug_build():
+			print("[Combat] %s confirmed defeated." % name)
 		defeated_signal.emit()
 		restrained = false
 		player_assisting = false
@@ -355,8 +377,6 @@ func take_damage(amount: int) -> void:
 		release_death_chemical_alert(death_position)
 
 		remove_from_group("immune_cells")
-
-	print("Neutrophil defeated!")
 
 
 func find_nearest_target() -> Node2D:

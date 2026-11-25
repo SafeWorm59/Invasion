@@ -135,12 +135,6 @@ static var _dialog_instance: Control = null
 static var _is_showing: bool = false
 
 
-func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_cancel"):
-		if not _is_showing:
-			open_save_confirmation()
-
-
 func open_save_confirmation() -> void:
 	if _is_showing or _dialog_instance != null:
 		return

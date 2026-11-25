@@ -88,12 +88,7 @@ func _on_body_entered(body: Node2D) -> void:
 
 
 func show_completion_popup() -> void:
-	var popup := AcceptDialog.new()
-	popup.title = "LEVEL COMPLETED!"
-	popup.dialog_text = "Congratulations! You have completed the Nasal Passage level."
-
-	get_tree().root.add_child(popup)
-	popup.popup_centered()
+	GameManager.show_level_completion_dialog(1)
 
 
 func update_exit_visual() -> void:

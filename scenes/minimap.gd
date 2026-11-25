@@ -3,9 +3,8 @@ extends Control
 # Reusable level minimap, shown fixed in the top-right corner of the HUD.
 #
 # It draws a simplified top-down view of the WHOLE level and live markers for
-# the player, host cells, neutrophils and macrophages. Entities are read from
-# groups every frame, so markers always follow the real gameplay objects and
-# disappear the instant those objects are freed — nothing is cached.
+# the player, host cells, neutrophils and macrophages. Entity counts are polled
+# periodically; markers are read from groups when the map is redrawn.
 #
 # Per-level data comes from a duck-typed provider: the current scene root may
 # implement `minimap_bounds() -> Rect2` (world-space playable bounds) and
@@ -15,10 +14,11 @@ extends Control
 
 const MAP_WIDTH: float = 232.0
 const MAP_HEIGHT: float = 232.0
-const LEGEND_HEIGHT: float = 28.0
+const LEGEND_HEIGHT: float = 54.0
 const SCREEN_MARGIN: float = 16.0
 const INNER_PAD: float = 8.0
 const FIT: float = 0.92
+const ENTITY_SCAN_INTERVAL: float = 0.25
 
 const COLOR_BG := Color(0.05, 0.03, 0.07, 0.72)
 const COLOR_BORDER := Color(0.68, 0.33, 0.50, 0.95)
@@ -42,7 +42,7 @@ var _cached_mapped_edges: Array[PackedVector2Array] = []
 var _cached_legend: Array[Dictionary] = []
 var _redraw_timer: float = 0.0
 
-# Caching: track entity counts per group so we only redraw when they change.
+# Cache entity counts so the legend is only rebuilt when groups change.
 var _last_player_count: int = -1
 var _last_host_count: int = -1
 var _last_neutrophil_count: int = -1
@@ -50,28 +50,37 @@ var _last_macrophage_count: int = -1
 var _last_dendritic_count: int = -1
 var _last_nkt_count: int = -1
 var _first_run: bool = true
+var _entity_scan_timer: float = 0.0
 
 
 func _ready() -> void:
+	add_to_group("minimap")
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	apply_safe_area(Rect2(Vector2.ZERO, get_viewport_rect().size), get_viewport_rect().size)
+
+
+func apply_safe_area(safe_rect: Rect2, viewport_size: Vector2) -> void:
 	anchor_left = 1.0
 	anchor_right = 1.0
 	anchor_top = 0.0
 	anchor_bottom = 0.0
-	offset_left = -(MAP_WIDTH + SCREEN_MARGIN)
-	offset_right = -SCREEN_MARGIN
-	offset_top = SCREEN_MARGIN
-	offset_bottom = SCREEN_MARGIN + MAP_HEIGHT + LEGEND_HEIGHT
+	offset_right = safe_rect.end.x - viewport_size.x - SCREEN_MARGIN
+	offset_left = offset_right - MAP_WIDTH
+	offset_top = safe_rect.position.y + SCREEN_MARGIN
+	offset_bottom = offset_top + MAP_HEIGHT + LEGEND_HEIGHT
 
 
 func _process(delta: float) -> void:
 	if not _have_map:
 		_resolve_provider()
 
-	# Re-cache legend when groups change
-	var counts_changed = _check_entity_changes()
-	if counts_changed or _first_run:
-		_rebuild_legend_cache()
+	_entity_scan_timer -= delta
+	if _entity_scan_timer <= 0.0 or _first_run:
+		_entity_scan_timer = ENTITY_SCAN_INTERVAL
+		var counts_changed: bool = _check_entity_changes()
+		if counts_changed or _first_run:
+			_rebuild_legend_cache()
+			queue_redraw()
 
 	# Redraw smoothly at ~10 FPS so player and entity markers track smoothly
 	# without pegging the CPU.
@@ -138,7 +147,7 @@ func _check_entity_changes() -> bool:
 		player_count = 1
 
 	# Check entity groups
-	var host_cells = get_tree().get_nodes_in_group("host_cells")
+	var host_cells = get_tree().get_nodes_in_group("uninfected_host_cells")
 	var neutrophil_count: int = get_tree().get_nodes_in_group("neutrophils").size()
 	var macrophage_count: int = get_tree().get_nodes_in_group("macrophages").size()
 	var dendritic_count: int = get_tree().get_nodes_in_group("dendritic_cells").size()
@@ -210,11 +219,12 @@ func _draw() -> void:
 		draw_colored_polygon(_cached_mapped_polys[i], COLOR_TERRAIN)
 		draw_polyline(_cached_mapped_edges[i], COLOR_TERRAIN_EDGE, 1.0, true)
 
-	_draw_group_markers("host_cells", COLOR_HOST, 2.6, map_rect)
+	_draw_group_markers("uninfected_host_cells", COLOR_HOST, 2.6, map_rect)
 	_draw_group_markers("neutrophils", COLOR_NEUTROPHIL, 3.0, map_rect)
 	_draw_group_markers("macrophages", COLOR_MACROPHAGE, 3.4, map_rect)
 	_draw_dendritic_markers(map_rect)
 	_draw_nkt_markers(map_rect)
+	_draw_unlocked_exit_marker(map_rect)
 	_draw_player(map_rect)
 
 	_draw_legend()
@@ -289,12 +299,36 @@ func _draw_player(map_rect: Rect2) -> void:
 	draw_arc(marker, 6.5, 0.0, TAU, 18, COLOR_PLAYER, 1.0, true)
 
 
+func _draw_unlocked_exit_marker(map_rect: Rect2) -> void:
+	for node in get_tree().get_nodes_in_group("level_exit"):
+		if not is_instance_valid(node) or not (node is Node2D):
+			continue
+		if not node.has_meta("exit_unlocked") or not bool(node.get_meta("exit_unlocked")):
+			continue
+
+		var marker := _world_to_map((node as Node2D).global_position, map_rect)
+		var exit_color := Color("#72FF9B")
+		draw_circle(marker, 4.0, exit_color)
+		draw_arc(marker, 8.0, 0.0, TAU, 24, Color.WHITE, 1.8, true)
+		draw_line(marker + Vector2(-3.0, 0.0), marker + Vector2(3.0, 0.0), Color.WHITE, 1.3, true)
+		draw_line(marker + Vector2(0.0, -3.0), marker + Vector2(0.0, 3.0), Color.WHITE, 1.3, true)
+		draw_string(
+			ThemeDB.fallback_font,
+			marker + Vector2(10.0, 3.0),
+			"EXIT",
+			HORIZONTAL_ALIGNMENT_LEFT,
+			-1,
+			8,
+			Color.WHITE
+		)
+
+
 func _rebuild_legend_cache() -> void:
 	_cached_legend.clear()
 	if is_instance_valid(get_tree().get_first_node_in_group("player")):
 		_cached_legend.append({"color": COLOR_PLAYER, "label": "YOU"})
-	if not get_tree().get_nodes_in_group("host_cells").is_empty():
-		_cached_legend.append({"color": COLOR_HOST, "label": "HOST CELL"})
+	if not get_tree().get_nodes_in_group("uninfected_host_cells").is_empty():
+		_cached_legend.append({"color": COLOR_HOST, "label": "UNINFECTED HOST"})
 	if not get_tree().get_nodes_in_group("neutrophils").is_empty():
 		_cached_legend.append({"color": COLOR_NEUTROPHIL, "label": "NEUTROPHIL"})
 	if not get_tree().get_nodes_in_group("macrophages").is_empty():
@@ -326,6 +360,17 @@ func _draw_legend() -> void:
 		if col >= 2:
 			col = 0
 			row += 1
+
+	var legend_note := "GREEN = UNINFECTED HOST CELL"
+	draw_string(
+		font,
+		Vector2(INNER_PAD, size.y - 3.0),
+		legend_note,
+		HORIZONTAL_ALIGNMENT_LEFT,
+		-1,
+		10,
+		COLOR_LABEL
+	)
 
 
 func _draw_legend_item(

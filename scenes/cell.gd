@@ -42,10 +42,14 @@ const WARNING_DURATION: float = 2.0
 
 const BURST_DURATION: float = 0.2
 const FRAGMENT_COUNT: int = 7
+const REPLICATION_REDRAW_INTERVAL: float = 0.05
 
 var replication_time: float = 8.0
 var replication_started: bool = false
 var replication_remaining: float = 0.0
+var _replication_countdown: Label
+var _replication_redraw_timer: float = 0.0
+var _last_countdown_warning: bool = false
 
 var fragment_angles: Array[float] = []
 var fragment_distances: Array[float] = []
@@ -54,6 +58,23 @@ var fragment_rotations: Array[float] = []
 
 func _ready() -> void:
 	randomize()
+	_replication_countdown = Label.new()
+	_replication_countdown.name = "ReplicationCountdown"
+	_replication_countdown.position = Vector2(-50.0, -cell_radius - 31.0)
+	_replication_countdown.size = Vector2(100.0, 24.0)
+	_replication_countdown.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_replication_countdown.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_replication_countdown.z_index = 11
+	_replication_countdown.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_replication_countdown.add_theme_font_override("font", ThemeDB.fallback_font)
+	_replication_countdown.add_theme_font_size_override("font_size", 18)
+	_replication_countdown.add_theme_color_override("font_color", Color.WHITE)
+	_replication_countdown.add_theme_color_override("font_outline_color", Color("#1a0b12"))
+	_replication_countdown.add_theme_constant_override("outline_size", 3)
+	_replication_countdown.visible = false
+	add_child(_replication_countdown)
+	if not infected and not eliminated:
+		add_to_group("uninfected_host_cells")
 
 
 func _draw() -> void:
@@ -157,35 +178,6 @@ func _draw() -> void:
 	draw_circle(Vector2(5, -4), cell_radius * 0.28, nucleus_color)
 	draw_circle(Vector2(-12, 8), cell_radius * 0.10, Color("#f6b4bd"))
 
-	# Display the replication countdown above the cell.
-	if replication_started:
-		var seconds_left: int = int(ceil(replication_remaining))
-		var timer_text: String = str(maxi(seconds_left, 0))
-
-		var font := ThemeDB.fallback_font
-		var font_size: int = 18
-		var text_size: Vector2 = font.get_string_size(
-			timer_text,
-			HORIZONTAL_ALIGNMENT_LEFT,
-			-1,
-			font_size
-		)
-
-		var text_color: Color = Color.WHITE
-
-		if warning_active:
-			text_color = Color("#ff4545")
-
-		draw_string(
-			font,
-			Vector2(-text_size.x / 2.0, -cell_radius - 12.0),
-			timer_text,
-			HORIZONTAL_ALIGNMENT_LEFT,
-			-1,
-			font_size,
-			text_color
-		)
-
 
 func _on_interaction_area_body_entered(body: Node2D) -> void:
 	if body.name == "Player":
@@ -201,14 +193,17 @@ func _on_interaction_area_body_exited(body: Node2D) -> void:
 		print("Player left the host cell")
 
 
+func can_player_enter(player: Node2D) -> bool:
+	return (
+		not eliminated
+		and not infected
+		and player_nearby
+		and nearby_player == player
+	)
+
+
 func try_enter(player: Node2D) -> bool:
-	if eliminated:
-		return false
-
-	if not player_nearby:
-		return false
-
-	if nearby_player != player:
+	if not can_player_enter(player):
 		return false
 
 	if not infect():
@@ -228,6 +223,7 @@ func infect() -> bool:
 
 	infected = true
 	objective_counted = true
+	remove_from_group("uninfected_host_cells")
 	queue_redraw()
 
 	emit_signal("objective_completed", self)
@@ -244,8 +240,29 @@ func start_replication() -> void:
 	replication_remaining = replication_time
 	warning_active = false
 	warning_timer = 0.0
+	_update_replication_countdown()
 
 	print("Replication started!")
+
+
+func _update_replication_countdown() -> void:
+	if not is_instance_valid(_replication_countdown):
+		return
+
+	if _replication_countdown.visible != replication_started:
+		_replication_countdown.visible = replication_started
+	if not replication_started:
+		return
+
+	var countdown_text := str(maxi(int(ceil(replication_remaining)), 0))
+	if _replication_countdown.text != countdown_text:
+		_replication_countdown.text = countdown_text
+	if _last_countdown_warning != warning_active:
+		_last_countdown_warning = warning_active
+		_replication_countdown.add_theme_color_override(
+			"font_color",
+			Color("#ff4545") if warning_active else Color.WHITE
+		)
 
 
 func prepare_fragments() -> void:
@@ -298,12 +315,17 @@ func _process(delta: float) -> void:
 		warning_active = false
 		warning_timer = 0.0
 
-	queue_redraw()
+	_update_replication_countdown()
+	_replication_redraw_timer -= delta
+	if _replication_redraw_timer <= 0.0:
+		_replication_redraw_timer = REPLICATION_REDRAW_INTERVAL
+		queue_redraw()
 
 	# Burst when replication finishes.
 	if replication_remaining <= 0.0:
 		replication_started = false
 		warning_active = false
+		_update_replication_countdown()
 		bursting = true
 		burst_animation_time = 0.0
 
@@ -392,11 +414,13 @@ func eliminate(source: Node = null) -> void:
 	replication_started = false
 	replication_remaining = 0.0
 	warning_active = false
+	_update_replication_countdown()
 	bursting = false
 
 	# Leave the host_cells group at once: minimap, registry and the player's
 	# interact scan must never see this cell again.
 	remove_from_group("host_cells")
+	remove_from_group("uninfected_host_cells")
 
 	_eject_player()
 	_dissolve_owned_minions()

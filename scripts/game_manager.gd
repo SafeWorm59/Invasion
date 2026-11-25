@@ -4,7 +4,23 @@ signal settings_changed
 
 const SETTINGS_FILE_PATH: String = "user://settings.cfg"
 const PROGRESS_FILE_PATH: String = "user://progress.cfg"
-const DEFAULT_HIGHEST_UNLOCKED_LEVEL: int = 4
+const CONTROL_LAYOUT_FILE_PATH: String = "user://mobile_controls.cfg"
+const LEVEL_SELECTION_SCENE_PATH: String = "res://scenes/level_selection.tscn"
+const CONTROL_NAMES: Array[String] = ["joystick", "infect", "follow", "capture", "defend"]
+const WASD_MOVEMENT_BINDINGS: Dictionary = {
+	"ui_left": KEY_A,
+	"ui_right": KEY_D,
+	"ui_up": KEY_W,
+	"ui_down": KEY_S,
+}
+const DEFAULT_CONTROL_LAYOUT: Dictionary = {
+	"joystick": {"position": Vector2(0.10, 0.80), "scale": 1.0, "opacity": 0.78},
+	"infect": {"position": Vector2(0.90, 0.80), "scale": 1.0, "opacity": 0.85},
+	"follow": {"position": Vector2(0.72, 0.60), "scale": 1.0, "opacity": 0.88},
+	"capture": {"position": Vector2(0.72, 0.76), "scale": 1.0, "opacity": 0.88},
+	"defend": {"position": Vector2(0.72, 0.92), "scale": 1.0, "opacity": 0.88},
+}
+const DEFAULT_HIGHEST_UNLOCKED_LEVEL: int = 1
 const MAX_LEVEL_ID: int = 5
 
 var levels: Array[Dictionary] = [
@@ -20,13 +36,78 @@ var master_volume: float = 1.0
 var music_volume: float = 0.8
 var sfx_volume: float = 0.8
 var is_fullscreen: bool = false
+var mobile_controls_preview_on_desktop: bool = false
+var mobile_control_layout: Dictionary = DEFAULT_CONTROL_LAYOUT.duplicate(true)
+var _completion_dialog: AcceptDialog = null
 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	ensure_wasd_movement_bindings()
 	ensure_audio_buses()
 	load_settings()
+	load_mobile_control_layout()
 	load_progress()
+
+
+func ensure_wasd_movement_bindings() -> void:
+	for action_value in WASD_MOVEMENT_BINDINGS:
+		var action_name: String = str(action_value)
+		if not InputMap.has_action(action_name):
+			InputMap.add_action(action_name)
+
+		var key_event := InputEventKey.new()
+		key_event.physical_keycode = int(WASD_MOVEMENT_BINDINGS[action_name])
+		if not InputMap.action_has_event(action_name, key_event):
+			InputMap.action_add_event(action_name, key_event)
+
+
+func get_mobile_control_layout() -> Dictionary:
+	return mobile_control_layout.duplicate(true)
+
+
+func save_mobile_control_layout(layout: Dictionary) -> bool:
+	var validated := DEFAULT_CONTROL_LAYOUT.duplicate(true)
+	for control_name in CONTROL_NAMES:
+		var entry: Dictionary = layout.get(control_name, {})
+		if entry.has("position") and entry["position"] is Vector2:
+			entry = entry.duplicate(true)
+			var normalized_position: Vector2 = entry["position"]
+			entry["position"] = normalized_position.clamp(Vector2.ZERO, Vector2.ONE)
+			entry["scale"] = clampf(float(entry.get("scale", 1.0)), 0.65, 1.5)
+			entry["opacity"] = clampf(float(entry.get("opacity", 0.85)), 0.3, 1.0)
+			validated[control_name] = entry
+	var config := ConfigFile.new()
+	config.set_value("controls", "layout", validated)
+	var err := config.save(CONTROL_LAYOUT_FILE_PATH)
+	if err != OK:
+		push_error("GameManager: Failed to save mobile controls layout, error: %d" % err)
+		return false
+	mobile_control_layout = validated
+	return true
+
+
+func reset_mobile_control_layout() -> Dictionary:
+	return DEFAULT_CONTROL_LAYOUT.duplicate(true)
+
+
+func load_mobile_control_layout() -> void:
+	var config := ConfigFile.new()
+	if config.load(CONTROL_LAYOUT_FILE_PATH) != OK:
+		mobile_control_layout = DEFAULT_CONTROL_LAYOUT.duplicate(true)
+		return
+	var saved: Variant = config.get_value("controls", "layout", {})
+	if saved is Dictionary:
+		mobile_control_layout = DEFAULT_CONTROL_LAYOUT.duplicate(true)
+		for control_name in CONTROL_NAMES:
+			var entry: Variant = saved.get(control_name, {})
+			if entry is Dictionary and entry.get("position") is Vector2:
+				var normalized_position: Vector2 = entry["position"]
+				mobile_control_layout[control_name] = {
+					"position": normalized_position.clamp(Vector2.ZERO, Vector2.ONE),
+					"scale": clampf(float(entry.get("scale", 1.0)), 0.65, 1.5),
+					"opacity": clampf(float(entry.get("opacity", 0.85)), 0.3, 1.0),
+				}
 
 
 func ensure_audio_buses() -> void:
@@ -137,12 +218,177 @@ func load_level(id: int) -> bool:
 	return true
 
 
+func reload_current_level() -> bool:
+	if MultiplayerSession.is_session_active:
+		push_warning("GameManager: Individual multiplayer level restarts are disabled.")
+		return false
+
+	var current_scene := get_tree().current_scene
+	if not is_instance_valid(current_scene):
+		push_error("GameManager: Cannot restart because there is no current scene.")
+		return false
+
+	var current_scene_path: String = current_scene.scene_file_path
+	for level in levels:
+		if String(level.get("scene_path", "")) == current_scene_path:
+			return load_level(int(level.get("id", 0)))
+
+	push_error(
+		"GameManager: Current scene '%s' is not a registered level."
+		% current_scene_path
+	)
+	return false
+
+
+func show_level_completion_dialog(level_id: int) -> void:
+	if is_instance_valid(_completion_dialog):
+		return
+
+	var level := get_level(level_id)
+	if level.is_empty():
+		push_error("GameManager: Cannot show completion for unknown level ID %d." % level_id)
+		return
+
+	var is_multiplayer_session: bool = MultiplayerSession.is_session_active
+	var level_name: String = str(level.get("name", "")).to_lower().capitalize()
+	var dialog_title: String
+	var dialog_message: String
+	var primary_button_text: String
+	var primary_action: StringName
+	var secondary_button_text: String = "MAIN MENU"
+	var secondary_action: StringName = &"main_menu"
+
+	if is_multiplayer_session:
+		dialog_title = "MULTIPLAYER PROGRESSION UNAVAILABLE"
+		dialog_message = (
+			"Level progression is not synchronized in multiplayer yet. "
+			+ "Continue playing this match, or leave to the main menu."
+		)
+		primary_button_text = "CONTINUE MATCH"
+		primary_action = &"continue_match"
+		secondary_button_text = "LEAVE TO MAIN MENU"
+		secondary_action = &"leave_to_main_menu"
+	elif level_id == MAX_LEVEL_ID:
+		dialog_title = "CONGRATULATIONS! YOU COMPLETED INVASION!"
+		dialog_message = "You have completed all five levels of INVASION."
+		primary_button_text = "REPLAY"
+		primary_action = &"replay"
+	else:
+		var next_level_id: int = level_id + 1
+		var next_level: Dictionary = get_level(next_level_id)
+		if not next_level.is_empty():
+			unlock_level(next_level_id)
+
+		var next_level_name: String = str(next_level.get("name", "")).to_lower().capitalize()
+		var next_scene_path: String = str(next_level.get("scene_path", ""))
+		var next_scene_available: bool = (
+			not next_level.is_empty()
+			and not next_scene_path.is_empty()
+			and ResourceLoader.exists(next_scene_path)
+		)
+
+		dialog_title = "LEVEL %d COMPLETED!" % level_id
+		dialog_message = "Congratulations! You have completed the %s." % level_name
+		if next_scene_available:
+			dialog_message += "\n\nNext destination: %s." % next_level_name
+			primary_button_text = "NEXT LEVEL"
+			primary_action = &"next_level"
+		else:
+			var unavailable_level_name: String = (
+				next_level_name if not next_level_name.is_empty() else "The next level"
+			)
+			dialog_message += (
+				"\n\n%s is unavailable because its scene is missing. "
+				+ "Use Level Selection to choose another available level."
+			) % unavailable_level_name
+			primary_button_text = "LEVEL SELECTION"
+			primary_action = &"level_selection"
+
+	var dialog := AcceptDialog.new()
+	_completion_dialog = dialog
+	dialog.title = dialog_title
+	dialog.dialog_text = dialog_message
+	dialog.get_ok_button().text = primary_button_text
+	var viewport_size: Vector2 = get_viewport().get_visible_rect().size
+	var dialog_width: int = mini(680, maxi(280, roundi(viewport_size.x * 0.88)))
+	var dialog_height: int = mini(340, maxi(210, roundi(viewport_size.y * 0.44)))
+	var button_width: float = maxf(110.0, (float(dialog_width) - 72.0) / 2.0)
+	dialog.get_ok_button().custom_minimum_size = Vector2(button_width, 52.0)
+	dialog.get_ok_button().add_theme_font_size_override(
+		"font_size",
+		clampi(roundi(viewport_size.y * 0.026), 14, 22)
+	)
+	var secondary_button: Button = dialog.add_button(
+		secondary_button_text,
+		true,
+		String(secondary_action)
+	)
+	secondary_button.custom_minimum_size = Vector2(button_width, 52.0)
+	secondary_button.add_theme_font_size_override(
+		"font_size",
+		clampi(roundi(viewport_size.y * 0.026), 14, 22)
+	)
+	dialog.confirmed.connect(
+		_on_completion_dialog_confirmed.bind(dialog, primary_action, level_id)
+	)
+	dialog.custom_action.connect(
+		_on_completion_dialog_custom_action.bind(dialog, secondary_action)
+	)
+	dialog.canceled.connect(_on_completion_dialog_canceled.bind(dialog))
+	add_child(dialog)
+	dialog.popup_centered(Vector2i(dialog_width, dialog_height))
+
+
+func _on_completion_dialog_confirmed(
+	dialog: AcceptDialog,
+	action: StringName,
+	level_id: int
+) -> void:
+	_release_completion_dialog(dialog)
+	match action:
+		&"next_level":
+			if not load_level(level_id + 1):
+				load_level_selection()
+		&"level_selection":
+			load_level_selection()
+		&"replay":
+			if not load_level(1):
+				load_level_selection()
+		&"continue_match":
+			pass
+
+
+func _on_completion_dialog_custom_action(
+	action: StringName,
+	dialog: AcceptDialog,
+	secondary_action: StringName
+) -> void:
+	if action != secondary_action:
+		return
+
+	_release_completion_dialog(dialog)
+	if action == &"main_menu" or action == &"leave_to_main_menu":
+		if MultiplayerSession.is_session_active:
+			MultiplayerSession.cancel_session()
+		load_main_menu()
+
+
+func _on_completion_dialog_canceled(dialog: AcceptDialog) -> void:
+	_release_completion_dialog(dialog)
+
+
+func _release_completion_dialog(dialog: AcceptDialog) -> void:
+	if _completion_dialog == dialog:
+		_completion_dialog = null
+	dialog.queue_free()
+
+
 func load_main_menu() -> void:
 	get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
 
 
 func load_level_selection() -> void:
-	get_tree().change_scene_to_file("res://scenes/level_selection.tscn")
+	get_tree().change_scene_to_file(LEVEL_SELECTION_SCENE_PATH)
 
 
 func set_master_volume(vol: float) -> void:
@@ -195,6 +441,7 @@ func save_settings() -> void:
 	config.set_value("audio", "music_volume", music_volume)
 	config.set_value("audio", "sfx_volume", sfx_volume)
 	config.set_value("display", "fullscreen", is_fullscreen)
+	config.set_value("display", "mobile_controls_preview_on_desktop", mobile_controls_preview_on_desktop)
 	var err := config.save(SETTINGS_FILE_PATH)
 	if err != OK:
 		push_error("GameManager: Failed to save settings to '%s', error: %d" % [SETTINGS_FILE_PATH, err])
@@ -210,6 +457,7 @@ func load_settings() -> void:
 		music_volume = config.get_value("audio", "music_volume", 0.8)
 		sfx_volume = config.get_value("audio", "sfx_volume", 0.8)
 		is_fullscreen = config.get_value("display", "fullscreen", false)
+		mobile_controls_preview_on_desktop = config.get_value("display", "mobile_controls_preview_on_desktop", false)
 		print("GameManager: Settings loaded from '%s'." % SETTINGS_FILE_PATH)
 	else:
 		print("GameManager: No existing settings file, using defaults.")
