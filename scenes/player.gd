@@ -147,6 +147,11 @@ func _physics_process(delta: float) -> void:
 		velocity = Vector2.ZERO
 		return
 
+	if TutorialManager.is_local_gameplay_blocked():
+		network_movement_input = Vector2.ZERO
+		velocity = Vector2.ZERO
+		return
+
 	if inside_cell:
 		network_movement_input = Vector2.ZERO
 		velocity = Vector2.ZERO
@@ -196,7 +201,10 @@ func _physics_process(delta: float) -> void:
 		team_attack_timer = 0.0
 
 	network_movement_input = (velocity / SPEED).limit_length(1.0)
+	var movement_start_position := global_position
 	move_and_slide()
+	if global_position.distance_to(movement_start_position) > 0.1:
+		TutorialManager.report_player_moved()
 
 	if Input.is_action_just_pressed("interact"):
 		perform_context_interaction()
@@ -224,6 +232,7 @@ func perform_context_interaction() -> void:
 		if not cell.can_player_enter(self) or not cell.try_enter(self):
 			continue
 
+		TutorialManager.report_host_cell_infected(cell)
 		inside_cell = true
 		host_cell = cell
 		start_cell_transition("enter", global_position, cell.global_position)
@@ -445,7 +454,12 @@ func update_health_label() -> void:
 func take_damage(amount: int) -> void:
 	# The virus is protected for the full host-cell visit, including the fade
 	# transitions where it may still be visible to enemy targeting code.
-	if amount <= 0 or is_dead or inside_cell:
+	if (
+		amount <= 0
+		or is_dead
+		or inside_cell
+		or TutorialManager.is_local_player_protected()
+	):
 		return
 
 	print("[PLAYER DAMAGE] Received: ", amount, " HP")

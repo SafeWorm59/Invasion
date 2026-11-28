@@ -32,6 +32,7 @@ var levels: Array[Dictionary] = [
 ]
 
 var highest_unlocked_level: int = DEFAULT_HIGHEST_UNLOCKED_LEVEL
+var completed_tutorial_levels: Dictionary = {}
 var master_volume: float = 1.0
 var music_volume: float = 0.8
 var sfx_volume: float = 0.8
@@ -169,25 +170,100 @@ func _apply_level_unlock_state() -> void:
 
 func save_progress() -> void:
 	var config := ConfigFile.new()
+	var load_error := config.load(PROGRESS_FILE_PATH)
+	if load_error != OK and load_error != ERR_FILE_NOT_FOUND:
+		push_error(
+			"GameManager: Failed to load progress before saving to '%s', error: %d"
+			% [PROGRESS_FILE_PATH, load_error]
+		)
+		return
 	config.set_value("progress", "highest_unlocked_level", highest_unlocked_level)
+	config.set_value("tutorials", "completed_levels", completed_tutorial_levels)
 	var err := config.save(PROGRESS_FILE_PATH)
 	if err != OK:
 		push_error("GameManager: Failed to save progress to '%s', error: %d" % [PROGRESS_FILE_PATH, err])
 
 
+func is_tutorial_completed(level_id: int) -> bool:
+	return bool(completed_tutorial_levels.get(str(level_id), false))
+
+
+func mark_tutorial_completed(level_id: int) -> bool:
+	if level_id < 1 or level_id > MAX_LEVEL_ID:
+		push_error("GameManager: Cannot save tutorial completion for level %d." % level_id)
+		return false
+	var updated_tutorials := completed_tutorial_levels.duplicate(true)
+	updated_tutorials[str(level_id)] = true
+	if not _save_progress_file(updated_tutorials):
+		return false
+	completed_tutorial_levels = updated_tutorials
+	return true
+
+
+func reset_tutorial_progress() -> bool:
+	if not _save_progress_file({}):
+		return false
+	completed_tutorial_levels.clear()
+	return true
+
+
+func _save_progress_file(tutorial_progress: Dictionary) -> bool:
+	var config := ConfigFile.new()
+	var load_error := config.load(PROGRESS_FILE_PATH)
+	if load_error != OK and load_error != ERR_FILE_NOT_FOUND:
+		push_error(
+			"GameManager: Failed to load progress before saving to '%s', error: %d"
+			% [PROGRESS_FILE_PATH, load_error]
+		)
+		return false
+
+	var saved_highest_level := int(
+		config.get_value(
+			"progress",
+			"highest_unlocked_level",
+			DEFAULT_HIGHEST_UNLOCKED_LEVEL
+		)
+	)
+	config.set_value(
+		"progress",
+		"highest_unlocked_level",
+		clampi(
+			saved_highest_level,
+			DEFAULT_HIGHEST_UNLOCKED_LEVEL,
+			MAX_LEVEL_ID
+		)
+	)
+	config.set_value("tutorials", "completed_levels", tutorial_progress)
+	var err := config.save(PROGRESS_FILE_PATH)
+	if err != OK:
+		push_error("GameManager: Failed to save progress to '%s', error: %d" % [PROGRESS_FILE_PATH, err])
+		return false
+	return true
+
+
 func load_progress() -> void:
+	var config := ConfigFile.new()
+	var err := config.load(PROGRESS_FILE_PATH)
+	if err == OK:
+		var saved_tutorials: Variant = config.get_value(
+			"tutorials",
+			"completed_levels",
+			{}
+		)
+		if saved_tutorials is Dictionary:
+			completed_tutorial_levels = saved_tutorials.duplicate(true)
+	elif err != ERR_FILE_NOT_FOUND:
+		push_error("GameManager: Failed to load progress from '%s', error: %d" % [PROGRESS_FILE_PATH, err])
+		if not OS.is_debug_build():
+			_apply_level_unlock_state()
+			return
+
 	if OS.is_debug_build():
 		highest_unlocked_level = MAX_LEVEL_ID
 		_apply_level_unlock_state()
 		return
 
-	var config := ConfigFile.new()
-	var err := config.load(PROGRESS_FILE_PATH)
 	if err == ERR_FILE_NOT_FOUND:
-		_apply_level_unlock_state()
-		return
-	if err != OK:
-		push_error("GameManager: Failed to load progress from '%s', error: %d" % [PROGRESS_FILE_PATH, err])
 		_apply_level_unlock_state()
 		return
 

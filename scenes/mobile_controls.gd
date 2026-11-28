@@ -69,6 +69,14 @@ func set_context_action(join_attack_available: bool) -> void:
 	queue_redraw()
 
 
+func get_control_rect(control_name: String) -> Rect2:
+	if not _centers.has(control_name) or not _radii.has(control_name):
+		return Rect2()
+	var radius: float = float(_radii[control_name])
+	var center: Vector2 = _centers[control_name]
+	return Rect2(center - Vector2.ONE * radius, Vector2.ONE * radius * 2.0)
+
+
 func apply_layout(new_layout: Dictionary) -> void:
 	layout = new_layout.duplicate(true)
 	_update_layout()

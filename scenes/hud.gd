@@ -96,6 +96,24 @@ func _ready() -> void:
 	_create_performance_diagnostics()
 	get_viewport().size_changed.connect(_fit_to_safe_area)
 	_fit_to_safe_area()
+	call_deferred("_start_level_tutorial")
+
+
+func _start_level_tutorial() -> void:
+	TutorialManager.start_for_current_level(self)
+
+
+func set_tutorial_input_suspended(suspended: bool) -> void:
+	if is_instance_valid(_mobile_controls):
+		_mobile_controls.suspend_input(suspended)
+
+
+func get_tutorial_control_rect(control_name: String) -> Rect2:
+	if is_instance_valid(_mobile_controls) and _mobile_controls.visible:
+		return _mobile_controls.get_control_rect(control_name)
+	if control_name == "infect" and is_instance_valid(context_action_button):
+		return context_action_button.get_global_rect()
+	return Rect2()
 
 
 func _fit_to_safe_area() -> void:
@@ -648,6 +666,8 @@ func _handle_pause_input() -> void:
 		_on_exit_cancelled()
 	elif is_instance_valid(_pause_overlay):
 		_close_pause_menu()
+	elif TutorialManager.is_tutorial_active():
+		TutorialManager.skip_tutorial()
 	else:
 		_open_pause_menu()
 

@@ -190,10 +190,31 @@ const NASO_END := -2400.0
 const ORO_END := 800.0
 const BOTTOM := 4000.0
 
+const SHAPE := preload("res://scenes/pharynx_shape.gd")
+
 static var _bounds := Rect2()
 static var _barrier_cache: Dictionary = {}
 static var _wall_segments := PackedVector2Array()
 static var _boundary_samples := PackedVector2Array()
+
+static func floor_polygon() -> PackedVector2Array:
+	return SHAPE.outline()
+
+
+static func lumen_point(y: float, side: float) -> Vector2:
+	return SHAPE.lumen_point(y, side)
+
+
+static func center_x(y: float) -> float:
+	return SHAPE.center_x(y)
+
+
+static func half_width(y: float) -> float:
+	return SHAPE.half_width(y)
+
+
+static func outline(segments: int = 140, expand: float = 0.0) -> PackedVector2Array:
+	return SHAPE.outline(segments, expand)
 
 
 # --------------------------------------------------------------------------

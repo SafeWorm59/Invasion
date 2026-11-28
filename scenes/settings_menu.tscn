@@ -133,6 +133,21 @@ text = "Preview on PC"
 [node name="EmptyPreview" type="Control" parent="Margin/VBox/Grid"]
 layout_mode = 2
 
+[node name="TutorialsLabel" type="Label" parent="Margin/VBox/Grid"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "Tutorial Progress"
+
+[node name="ReplayTutorialsCheck" type="CheckBox" parent="Margin/VBox/Grid"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 14
+text = "Replay all tutorials"
+tooltip_text = "Clear completed tutorial markers so they appear again on the next visit."
+
+[node name="EmptyTutorials" type="Control" parent="Margin/VBox/Grid"]
+layout_mode = 2
+
 [node name="CustomizeControlsButton" type="Button" parent="Margin/VBox"]
 custom_minimum_size = Vector2(280, 48)
 layout_mode = 2

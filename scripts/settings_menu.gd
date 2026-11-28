@@ -14,6 +14,7 @@ signal customize_controls_requested
 @onready var sfx_label: Label = $Margin/VBox/Grid/SFXValue
 @onready var fullscreen_check: CheckBox = $Margin/VBox/Grid/FullscreenCheck
 @onready var mobile_preview_check: CheckBox = $Margin/VBox/Grid/MobilePreviewCheck
+@onready var replay_tutorials_check: CheckBox = $Margin/VBox/Grid/ReplayTutorialsCheck
 @onready var customize_controls_button: Button = $Margin/VBox/CustomizeControlsButton
 @onready var save_button: Button = $Margin/VBox/Buttons/SaveButton
 @onready var close_button: Button = $Margin/VBox/Buttons/CloseButton
@@ -33,6 +34,7 @@ func _ready() -> void:
 	UIThemeHelper.style_button(save_button, true)
 	UIThemeHelper.style_button(close_button, false)
 	UIThemeHelper.style_button(customize_controls_button, false)
+	UIThemeHelper.style_button(replay_tutorials_check, false)
 
 	master_slider.value_changed.connect(_on_master_changed)
 	music_slider.value_changed.connect(_on_music_changed)
@@ -89,6 +91,7 @@ func refresh_from_manager() -> void:
 
 	fullscreen_check.button_pressed = initial_fullscreen
 	mobile_preview_check.button_pressed = initial_mobile_preview
+	replay_tutorials_check.button_pressed = false
 
 
 func _on_master_changed(val: float) -> void:
@@ -115,6 +118,10 @@ func _on_mobile_preview_toggled(enabled: bool) -> void:
 
 
 func _on_save_pressed() -> void:
+	if replay_tutorials_check.button_pressed:
+		if not GameManager.reset_tutorial_progress():
+			return
+		replay_tutorials_check.button_pressed = false
 	GameManager.save_settings()
 	closed.emit()
 
@@ -126,4 +133,5 @@ func _on_close_pressed() -> void:
 	GameManager.set_sfx_volume(initial_sfx)
 	GameManager.set_fullscreen_mode(initial_fullscreen)
 	GameManager.mobile_controls_preview_on_desktop = initial_mobile_preview
+	replay_tutorials_check.button_pressed = false
 	closed.emit()
